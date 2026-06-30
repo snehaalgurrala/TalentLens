@@ -2,6 +2,8 @@ version: "3.9"
 
 # ──────────────────────────────────────────────────────────────
 #  TalentLens — Local Development Stack
+#  Active services: backend · postgres · redis
+#  Pending services (no Dockerfile yet): frontend · ai-services · worker
 # ──────────────────────────────────────────────────────────────
 
 services:
@@ -12,7 +14,20 @@ services:
       dockerfile: Dockerfile
     container_name: talentlens-backend
     restart: unless-stopped
-    env_file: .env
+    # --reload enables hot-reloading in development via the volume mount below
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      APP_ENV: development
+      DEBUG: "true"
+      LOG_LEVEL: INFO
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-talentlens}
+      POSTGRES_USER: ${POSTGRES_USER:-talentlens_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-please}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      ALLOWED_ORIGINS: "http://localhost:3000"
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
@@ -25,46 +40,7 @@ services:
     networks:
       - talentlens-net
 
-  # ── Frontend (Next.js) ───────────────────────────────────
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: talentlens-frontend
-    restart: unless-stopped
-    env_file: .env
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
-    depends_on:
-      - backend
-    networks:
-      - talentlens-net
-
-  # ── AI Services (Python microservice) ────────────────────
-  ai-services:
-    build:
-      context: ./ai-services
-      dockerfile: Dockerfile
-    container_name: talentlens-ai
-    restart: unless-stopped
-    env_file: .env
-    ports:
-      - "8001:8001"
-    volumes:
-      - ./ai-services:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - talentlens-net
-
-  # ── PostgreSQL ───────────────────────────────────────────
+  # ── PostgreSQL 16 + pgvector ──────────────────────────────
   postgres:
     image: pgvector/pgvector:pg16
     container_name: talentlens-postgres
@@ -83,10 +59,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     networks:
       - talentlens-net
 
-  # ── Redis ────────────────────────────────────────────────
+  # ── Redis 7 ───────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: talentlens-redis
@@ -101,27 +78,33 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 5s
     networks:
       - talentlens-net
 
-  # ── Celery Worker ────────────────────────────────────────
-  worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: talentlens-worker
-    restart: unless-stopped
-    command: celery -A app.worker worker --loglevel=info
-    env_file: .env
-    volumes:
-      - ./backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - talentlens-net
+  # ── Frontend (Next.js) — placeholder, no Dockerfile yet ───
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   container_name: talentlens-frontend
+  #   ...
+
+  # ── AI Services — placeholder, no Dockerfile yet ──────────
+  # ai-services:
+  #   build:
+  #     context: ./ai-services
+  #     dockerfile: Dockerfile
+  #   container_name: talentlens-ai
+  #   ...
+
+  # ── Celery Worker — placeholder, no worker module yet ─────
+  # worker:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   command: celery -A app.worker worker --loglevel=info
+  #   ...
 
 # ── Volumes ──────────────────────────────────────────────────
 volumes:

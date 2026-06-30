@@ -1,0 +1,134 @@
+version: "3.9"
+
+# ──────────────────────────────────────────────────────────────
+#  TalentLens — Local Development Stack
+# ──────────────────────────────────────────────────────────────
+
+services:
+  # ── Backend API (FastAPI) ─────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: talentlens-backend
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - talentlens-net
+
+  # ── Frontend (Next.js) ───────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: talentlens-frontend
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    networks:
+      - talentlens-net
+
+  # ── AI Services (Python microservice) ────────────────────
+  ai-services:
+    build:
+      context: ./ai-services
+      dockerfile: Dockerfile
+    container_name: talentlens-ai
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./ai-services:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - talentlens-net
+
+  # ── PostgreSQL ───────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: talentlens-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-talentlens}
+      POSTGRES_USER: ${POSTGRES_USER:-talentlens_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-please}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-talentlens_user} -d ${POSTGRES_DB:-talentlens}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - talentlens-net
+
+  # ── Redis ────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: talentlens-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - talentlens-net
+
+  # ── Celery Worker ────────────────────────────────────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: talentlens-worker
+    restart: unless-stopped
+    command: celery -A app.worker worker --loglevel=info
+    env_file: .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - talentlens-net
+
+# ── Volumes ──────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  redis_data:
+
+# ── Networks ─────────────────────────────────────────────────
+networks:
+  talentlens-net:
+    driver: bridge

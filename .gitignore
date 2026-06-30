@@ -1,0 +1,257 @@
+# ──────────────────────────────────────────────────────────────
+#  TalentLens .gitignore
+#  Covers: Python · Node.js · Docker · IDEs · OS · Build/CI
+# ──────────────────────────────────────────────────────────────
+
+# ── Environment & Secrets ─────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+lib/
+lib64/
+.installed.cfg
+MANIFEST
+.Python
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+*.pyo
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.pytest_cache/
+pytest.ini
+.coverage
+.coverage.*
+coverage.xml
+coverage/
+htmlcov/
+nosetests.xml
+*.log
+celerybeat-schedule
+celerybeat.pid
+*.sage.py
+.spyderproject.db
+.spyproject
+.ropeproject
+instance/
+.webassets-cache
+.scrapy
+docs/_build/
+target/
+profile_default/
+ipython_config.py
+.ipynb_checkpoints
+__pypackages__/
+.pdm.toml
+.pdm-python
+.pdm-build/
+.ruff_cache/
+
+# ── Node.js ───────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+.npm
+*.tsbuildinfo
+.next/
+out/
+.nuxt/
+.cache/
+.parcel-cache/
+.vuepress/dist
+dist/
+.docusaurus
+.serverless/
+.fusebox/
+.dynamodb/
+.tern-port
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.eslintcache
+.stylelintcache
+*.lock
+!package-lock.json
+!yarn.lock
+
+# ── Docker ────────────────────────────────────────────────────
+docker-compose.override.yml
+.docker/
+*.dockerignore
+
+# ── Build Artifacts ───────────────────────────────────────────
+*.o
+*.a
+*.out
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+*.dll
+*.exe
+*.lib
+*.pdb
+*.app
+*.dSYM/
+
+# ── Logs ─────────────────────────────────────────────────────
+logs/
+*.log
+*.log.*
+log/
+*.pid
+*.seed
+*.pid.lock
+
+# ── Caches ───────────────────────────────────────────────────
+.cache/
+.sass-cache/
+*.cache
+*.tmp
+tmp/
+temp/
+
+# ── Databases ────────────────────────────────────────────────
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# ── Testing ──────────────────────────────────────────────────
+.tox/
+.nox/
+reports/
+test-results/
+junit.xml
+*.snap
+
+# ── IDEs & Editors ───────────────────────────────────────────
+# VSCode
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+
+# JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+*.tmproj
+*.tmproject
+.theia/
+
+# Vim / Neovim
+*.swp
+*.swo
+*~
+.vim/
+
+# Emacs
+\#*\#
+.\#*
+*.elc
+auto-save-list
+tramp
+.\#
+.projectile
+
+# Sublime Text
+*.tmlanguage.cache
+*.tmPreferences.cache
+*.stTheme.cache
+*.sublime-workspace
+*.sublime-project
+
+# Eclipse
+.project
+.classpath
+.settings/
+.loadpath
+
+# ── OS-specific ──────────────────────────────────────────────
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.AppleDouble
+.LSOverride
+Icon
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+
+# ── Cloud / Infrastructure ───────────────────────────────────
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!*.tfvars.example
+.pulumi/
+*.kubeconfig
+kubeconfig
+
+# ── Misc ─────────────────────────────────────────────────────
+*.bak
+*.orig
+*.patch
+*.diff
+.stignore
+.history/

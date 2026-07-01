@@ -45,10 +45,10 @@ def upgrade() -> None:
         sa.Column("description", sa.Text, nullable=True),
         sa.Column(
             "status",
-            sa.Enum(
+            postgresql.ENUM(
                 "DRAFT", "ACTIVE", "PAUSED", "CLOSED", "ARCHIVED",
                 name="campaignstatus",
-                create_type=False,  # already created above
+                create_type=False,
             ),
             nullable=False,
             server_default="DRAFT",

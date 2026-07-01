@@ -1,0 +1,34 @@
+You must output ONLY a JSON object. No other text is allowed before or after the JSON.
+
+Extract whatever information you can from the resume text. For any field you cannot find, use the default value shown.
+
+Return exactly this structure:
+
+{
+  "candidate": {
+    "first_name": "",
+    "last_name": "",
+    "email": "",
+    "phone": "",
+    "location": "",
+    "years_of_experience": 0,
+    "current_company": "",
+    "current_role": ""
+  },
+  "structured_resume": {
+    "skills": [],
+    "experience": [],
+    "education": [],
+    "projects": [],
+    "certifications": [],
+    "summary": ""
+  },
+  "confidence": 0.3
+}
+
+Fill in the fields you can identify. Leave defaults for everything else.
+Do not add any fields not listed above.
+Output valid JSON only.
+
+RESUME:
+{resume_text}

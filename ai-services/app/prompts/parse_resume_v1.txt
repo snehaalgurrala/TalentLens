@@ -1,0 +1,63 @@
+Extract structured information from the resume below and return a single JSON object.
+
+REQUIRED OUTPUT FORMAT — return ONLY this JSON, with no markdown fences, no explanation, no trailing text:
+
+{
+  "candidate": {
+    "first_name": "<string>",
+    "last_name": "<string>",
+    "email": "<string>",
+    "phone": "<string>",
+    "location": "<string>",
+    "years_of_experience": <number>,
+    "current_company": "<string>",
+    "current_role": "<string>"
+  },
+  "structured_resume": {
+    "skills": ["<string>", ...],
+    "experience": [
+      {
+        "company": "<string>",
+        "role": "<string>",
+        "start_date": "<string>",
+        "end_date": "<string>",
+        "description": "<string>"
+      }
+    ],
+    "education": [
+      {
+        "institution": "<string>",
+        "degree": "<string>",
+        "field": "<string>",
+        "graduation_year": "<string>"
+      }
+    ],
+    "projects": [
+      {
+        "name": "<string>",
+        "description": "<string>",
+        "technologies": ["<string>", ...]
+      }
+    ],
+    "certifications": [
+      {
+        "name": "<string>",
+        "issuer": "<string>",
+        "date": "<string>"
+      }
+    ],
+    "summary": "<string>"
+  },
+  "confidence": <number between 0.0 and 1.0>
+}
+
+RULES:
+- All string fields that are not found in the resume must be empty string "", never null
+- All numeric fields not found must be 0, never null
+- All list fields not found must be empty array [], never null
+- Estimate years_of_experience by summing work history durations; use 0 if indeterminate
+- Set confidence to reflect how complete and legible the resume text is (0.0 = unreadable, 1.0 = perfectly clear)
+- The JSON must be valid and parseable — no comments, no trailing commas
+
+RESUME TEXT:
+{resume_text}

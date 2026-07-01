@@ -58,10 +58,10 @@ def upgrade() -> None:
         sa.Column("password_hash", sa.String(255), nullable=False),
         sa.Column(
             "role",
-            sa.Enum(
+            postgresql.ENUM(
                 "SUPER_ADMIN", "ORG_ADMIN", "RECRUITER", "CANDIDATE",
                 name="userrole",
-                create_type=False,  # already created above
+                create_type=False,
             ),
             nullable=False,
             server_default="CANDIDATE",

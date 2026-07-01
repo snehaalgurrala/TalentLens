@@ -42,6 +42,21 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
+    # ── Storage ───────────────────────────────────────────────
+    STORAGE_BACKEND: str = "local"
+    LOCAL_STORAGE_PATH: str = "storage/resumes"
+    MAX_UPLOAD_SIZE_MB: int = 10
+
+    # AI Service
+    AI_SERVICE_URL: str = "http://ai-service:8001"
+    AI_SERVICE_TIMEOUT: int = 30
+
+    # ── Local embeddings (no external API calls) ─────────────────
+    LOCAL_EMBEDDING_MODEL: str = "BAAI/bge-large-en-v1.5"
+    LOCAL_EMBEDDING_DEVICE: str = "cpu"
+    LOCAL_EMBEDDING_BATCH_SIZE: int = 16
+    LOCAL_EMBEDDING_MAX_INPUT_CHARS: int = 8000
+
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: Any) -> list[str]:

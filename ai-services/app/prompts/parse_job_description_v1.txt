@@ -1,0 +1,36 @@
+Extract structured information from the job description below and return a single JSON object.
+
+REQUIRED OUTPUT FORMAT — return ONLY this JSON, with no markdown fences, no explanation, no trailing text:
+
+{
+  "job": {
+    "title": "<string>",
+    "experience_min": <integer>,
+    "experience_max": <integer>,
+    "industry": "<string>",
+    "employment_type": "<string>",
+    "location": "<string>"
+  },
+  "structured_jd": {
+    "required_skills": ["<string>", ...],
+    "preferred_skills": ["<string>", ...],
+    "education": ["<string>", ...],
+    "projects": ["<string>", ...],
+    "responsibilities": ["<string>", ...],
+    "certifications": ["<string>", ...]
+  },
+  "confidence": <number between 0.0 and 1.0>
+}
+
+RULES:
+- All string fields that are not found in the job description must be empty string "", never null
+- All list fields not found must be empty array [], never null
+- "experience_min" and "experience_max" are whole numbers of years (e.g. 3 and 5 for "3-5 years"); use 0 for both if no experience requirement is stated; if only a single number is given (e.g. "5+ years"), set both experience_min and experience_max to that number
+- "employment_type" should be one of: "Full-time", "Part-time", "Contract", "Internship", "Temporary", or "" if unclear
+- "projects" lists any notable projects, products, or initiatives the role would work on, as short strings — empty array if none are mentioned
+- Set confidence to reflect how complete and legible the job description text is (0.0 = unreadable, 1.0 = perfectly clear)
+- The JSON must be valid and parseable — no comments, no trailing commas
+- Do not include any fields not listed above
+
+JOB DESCRIPTION TEXT:
+{jd_text}

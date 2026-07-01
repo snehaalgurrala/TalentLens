@@ -1,0 +1,32 @@
+You must output ONLY a JSON object. No other text is allowed before or after the JSON.
+
+Extract whatever information you can from the job description text. For any field you cannot find, use the default value shown.
+
+Return exactly this structure:
+
+{
+  "job": {
+    "title": "",
+    "experience_min": 0,
+    "experience_max": 0,
+    "industry": "",
+    "employment_type": "",
+    "location": ""
+  },
+  "structured_jd": {
+    "required_skills": [],
+    "preferred_skills": [],
+    "education": [],
+    "projects": [],
+    "responsibilities": [],
+    "certifications": []
+  },
+  "confidence": 0.3
+}
+
+Fill in the fields you can identify. Leave defaults for everything else.
+Do not add any fields not listed above.
+Output valid JSON only.
+
+JOB DESCRIPTION:
+{jd_text}

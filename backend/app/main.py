@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.redis import connect_redis, disconnect_redis, get_redis_client
 from app.db.session import engine
+from app.services.local_embedding_service import preload_model
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting %s v%s [%s]", settings.PROJECT_NAME, settings.VERSION, settings.APP_ENV)
 
     await connect_redis(settings.REDIS_URL)
+    await preload_model()
 
     yield
 

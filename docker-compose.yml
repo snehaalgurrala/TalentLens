@@ -1,9 +1,7 @@
-version: "3.9"
-
 # ──────────────────────────────────────────────────────────────
 #  TalentLens — Local Development Stack
-#  Active services: backend · postgres · redis
-#  Pending services (no Dockerfile yet): frontend · ai-services · worker
+#  Active services: backend · postgres · redis · ai-service · worker
+#  Pending services (no Dockerfile yet): frontend
 # ──────────────────────────────────────────────────────────────
 
 services:
@@ -27,7 +25,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-please}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      ALLOWED_ORIGINS: "http://localhost:3000"
+      ALLOWED_ORIGINS: '["http://localhost:3000"]'
+      AI_SERVICE_URL: "http://ai-service:8001"
+      LOCAL_EMBEDDING_MODEL: ${LOCAL_EMBEDDING_MODEL:-BAAI/bge-large-en-v1.5}
+      LOCAL_EMBEDDING_DEVICE: ${LOCAL_EMBEDDING_DEVICE:-cpu}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
@@ -90,21 +91,61 @@ services:
   #   container_name: talentlens-frontend
   #   ...
 
-  # ── AI Services — placeholder, no Dockerfile yet ──────────
-  # ai-services:
-  #   build:
-  #     context: ./ai-services
-  #     dockerfile: Dockerfile
-  #   container_name: talentlens-ai
-  #   ...
+  # ── AI Service (resume parser) ───────────────────────────
+  ai-service:
+    build:
+      context: ./ai-services
+      dockerfile: Dockerfile
+    container_name: talentlens-ai
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+    environment:
+      APP_ENV: development
+      LOG_LEVEL: INFO
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-openai}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-large}
+      SENTENCE_TRANSFORMERS_MODEL: ${SENTENCE_TRANSFORMERS_MODEL:-all-MiniLM-L6-v2}
+    ports:
+      - "${AI_SERVICE_PORT:-8001}:8001"
+    volumes:
+      - ./ai-services:/app
+    networks:
+      - talentlens-net
 
-  # ── Celery Worker — placeholder, no worker module yet ─────
-  # worker:
-  #   build:
-  #     context: ./backend
-  #     dockerfile: Dockerfile
-  #   command: celery -A app.worker worker --loglevel=info
-  #   ...
+  # ── Celery Worker ─────────────────────────────────────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: talentlens-worker
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+    environment:
+      APP_ENV: development
+      LOG_LEVEL: INFO
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-talentlens}
+      POSTGRES_USER: ${POSTGRES_USER:-talentlens_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-please}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      AI_SERVICE_URL: "http://ai-service:8001"
+      AI_SERVICE_TIMEOUT: "30"
+      LOCAL_EMBEDDING_MODEL: ${LOCAL_EMBEDDING_MODEL:-BAAI/bge-large-en-v1.5}
+      LOCAL_EMBEDDING_DEVICE: ${LOCAL_EMBEDDING_DEVICE:-cpu}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - talentlens-net
 
 # ── Volumes ──────────────────────────────────────────────────
 volumes:

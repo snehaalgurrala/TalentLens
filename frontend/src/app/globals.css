@@ -1,0 +1,227 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * TalentSmart brand tokens as complete hsl(...) values — NOT bare "H S% L%"
+ * triplets. shadcn's generated component source (e.g. Button's secondary
+ * hover uses `color-mix(in oklch, var(--secondary), ...)`, Sonner sets
+ * `--normal-bg: var(--popover)` directly as a CSS `background`) assumes each
+ * variable already resolves to a valid <color>, so a bare triplet silently
+ * breaks those declarations. Light-mode values are exact conversions of the
+ * brand hex spec. Dark-mode values are contrast-adjusted derivatives of the
+ * same hues, verified against WCAG AA (4.5:1 text, 3:1 UI components) — see
+ * src/design-system/tokens/colors.ts for the literal hex mirror used by
+ * Recharts and the derivation notes.
+ */
+:root {
+  --background: hsl(216 45% 98%); /* #F7F9FC */
+  --surface: hsl(0 0% 100%); /* #FFFFFF */
+  --foreground: hsl(215 28% 17%); /* #1F2937 text-primary */
+  --muted: hsl(220 20% 95%);
+  --muted-foreground: hsl(220 9% 46%); /* #6B7280 text-secondary */
+
+  /* Decorative dividers/outlines (cards, table rows) — exact brand hex. */
+  --border: hsl(220 13% 91%); /* #E5E7EB */
+  /* Form-control borders need higher contrast than the brand border token
+     provides (E5E7EB on F7F9FC is ~1.2:1). Darkened to clear WCAG 1.4.11's
+     3:1 non-text contrast minimum for interactive component boundaries. */
+  --input: hsl(220 13% 56%);
+  --ring: hsl(205 100% 31%); /* = primary */
+
+  --primary: hsl(205 100% 31%); /* #005A9C */
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(206 72% 42%); /* #1E74B7 */
+  --secondary-foreground: hsl(0 0% 100%);
+
+  /* Brand green at full saturation fails AA with white text (2.7:1), so the
+     solid-fill foreground is dark text instead (5.4:1). Tints/badges that
+     use --success as a foreground-on-light-surface color are unaffected. */
+  --success: hsl(129 53% 46%); /* #37B34A */
+  --success-foreground: hsl(215 28% 17%);
+  /* Darker shade for text-on-tint use (badges) — green's high luminance
+     weight in the WCAG formula means even the solid-fill-safe foreground
+     isn't dark/saturated enough at small text sizes; verified 7.1:1. */
+  --success-emphasis: hsl(129 60% 24%);
+
+  --accent-purple: hsl(286 53% 18%); /* #3A1545 */
+  --accent-purple-foreground: hsl(0 0% 100%);
+  --accent-purple-emphasis: hsl(286 53% 18%); /* same as base — already >=4.5:1 as text */
+
+  /* Generic hover/focus tint used by shadcn menu-style components — distinct
+     from the brand --accent-purple token above. */
+  --accent: hsl(220 20% 95%);
+  --accent-foreground: hsl(215 28% 17%);
+
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(215 28% 17%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(215 28% 17%);
+
+  --destructive: hsl(0 72% 51%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --destructive-emphasis: hsl(0 72% 51%); /* same as base — already >=4.5:1 as text */
+
+  /* Amber fails AA with white text (2.1:1) in both themes, so warning always
+     pairs with dark text (6.9:1), consistent with the success token above. */
+  --warning: hsl(38 92% 50%);
+  --warning-foreground: hsl(215 28% 17%);
+  --warning-emphasis: hsl(38 85% 30%); /* darker amber for text-on-tint; verified 5.3:1 */
+
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: hsl(222 30% 8%);
+  --surface: hsl(222 25% 12%);
+  --foreground: hsl(210 20% 92%);
+  --muted: hsl(217 20% 16%);
+  --muted-foreground: hsl(215 15% 65%);
+
+  --border: hsl(217 20% 22%);
+  --input: hsl(217 20% 45%);
+  --ring: hsl(205 90% 40%); /* = primary */
+
+  /* Lightened from the light-mode value so solid fills stay legible against
+     a dark page background while still supporting white foreground text
+     at >=4.5:1 (see contrast derivation in colors.ts). */
+  --primary: hsl(205 90% 40%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(206 80% 42%);
+  --secondary-foreground: hsl(0 0% 100%);
+
+  --success: hsl(129 45% 52%);
+  --success-foreground: hsl(222 30% 10%);
+  --success-emphasis: hsl(129 55% 65%); /* lightened for text-on-tint against dark bg; verified 10.5:1 */
+
+  --accent-purple: hsl(286 45% 45%);
+  --accent-purple-foreground: hsl(0 0% 100%);
+  /* Base accent-purple is only 3.0:1 as direct text against the dark page
+     background — fine for a solid fill with white text, not for text-on-tint.
+     Lightened; verified 6.8:1. */
+  --accent-purple-emphasis: hsl(286 50% 68%);
+
+  --accent: hsl(217 20% 18%);
+  --accent-foreground: hsl(210 20% 92%);
+
+  --card: hsl(222 25% 12%);
+  --card-foreground: hsl(210 20% 92%);
+  --popover: hsl(222 25% 12%);
+  --popover-foreground: hsl(210 20% 92%);
+
+  --destructive: hsl(0 65% 45%);
+  --destructive-foreground: hsl(0 0% 100%);
+  /* Base destructive is only 3.1:1 as direct text against the dark page
+     background. Lightened for text-on-tint use; verified 4.9:1. */
+  --destructive-emphasis: hsl(0 70% 60%);
+
+  --warning: hsl(38 85% 60%);
+  --warning-foreground: hsl(222 30% 10%);
+  --warning-emphasis: hsl(38 80% 70%); /* verified 11.4:1 */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-emphasis: var(--success-emphasis);
+
+  --color-accent-purple: var(--accent-purple);
+  --color-accent-purple-foreground: var(--accent-purple-foreground);
+  --color-accent-purple-emphasis: var(--accent-purple-emphasis);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-emphasis: var(--destructive-emphasis);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-emphasis: var(--warning-emphasis);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+
+  /* Typography scale — see src/design-system/tokens/typography.ts */
+  --text-display: 3.5rem;
+  --text-display--line-height: 1.1;
+  --text-display--font-weight: 700;
+  --text-display--letter-spacing: -0.02em;
+  --text-h1: 2.75rem;
+  --text-h1--line-height: 1.15;
+  --text-h1--font-weight: 700;
+  --text-h1--letter-spacing: -0.02em;
+  --text-h2: 2.25rem;
+  --text-h2--line-height: 1.2;
+  --text-h2--font-weight: 700;
+  --text-h2--letter-spacing: -0.01em;
+  --text-h3: 1.875rem;
+  --text-h3--line-height: 1.25;
+  --text-h3--font-weight: 600;
+  --text-h4: 1.5rem;
+  --text-h4--line-height: 1.3;
+  --text-h4--font-weight: 600;
+  --text-h5: 1.25rem;
+  --text-h5--line-height: 1.4;
+  --text-h5--font-weight: 600;
+  --text-h6: 1.125rem;
+  --text-h6--line-height: 1.4;
+  --text-h6--font-weight: 600;
+  --text-subtitle: 1.125rem;
+  --text-subtitle--line-height: 1.5;
+  --text-subtitle--font-weight: 500;
+  --text-body: 1rem;
+  --text-body--line-height: 1.6;
+  --text-body--font-weight: 400;
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.5;
+  --text-caption--font-weight: 400;
+
+  /* Elevation scale — brand-tinted (cool navy) instead of pure black. */
+  --shadow-elevation-1: 0 1px 2px 0 rgb(31 41 55 / 0.06);
+  --shadow-elevation-2: 0 2px 8px -2px rgb(31 41 55 / 0.1), 0 1px 2px -1px rgb(31 41 55 / 0.06);
+  --shadow-elevation-3: 0 8px 24px -4px rgb(31 41 55 / 0.12), 0 2px 6px -2px rgb(31 41 55 / 0.06);
+  --shadow-elevation-4: 0 16px 40px -8px rgb(31 41 55 / 0.16), 0 4px 10px -2px rgb(31 41 55 / 0.08);
+
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-drawer: 1200;
+  --z-modal: 1300;
+  --z-popover: 1400;
+  --z-tooltip: 1500;
+  --z-toast: 1600;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}

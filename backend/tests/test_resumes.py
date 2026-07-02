@@ -28,7 +28,7 @@ from app.api.deps import get_current_user
 from app.api.v1.endpoints.resumes import get_resume_service
 from app.main import app
 from app.models.campaign import Campaign, CampaignStatus
-from app.models.resume_file import ResumeFile, ReviewStatus, UploadStatus
+from app.models.resume_file import PipelineStage, ResumeFile, ReviewStatus, UploadStatus
 from app.models.user import User, UserRole
 from app.services.resume_file import ResumeFileService
 
@@ -72,6 +72,9 @@ def make_resume_file(user: User, **overrides) -> ResumeFile:
         is_deleted=False,
         deleted_at=None,
         uploaded_at=datetime.now(UTC),
+        pipeline_stage=PipelineStage.APPLIED,
+        assigned_recruiter_id=None,
+        notes=None,
     )
     for k, v in overrides.items():
         object.__setattr__(rf, k, v)

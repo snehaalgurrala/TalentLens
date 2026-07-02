@@ -17,7 +17,7 @@ import httpx
 import pytest
 from celery.exceptions import Retry
 
-from app.models.resume_file import UploadStatus
+from app.models.resume_file import PipelineStage, UploadStatus
 from app.workers.resume_parser import (
     _PARSER_VERSION,
     _candidate_kwargs,
@@ -34,6 +34,7 @@ def _make_rf(
     *,
     status: UploadStatus = UploadStatus.UPLOADED,
     mime_type: str = "application/pdf",
+    pipeline_stage: PipelineStage = PipelineStage.APPLIED,
 ) -> SimpleNamespace:
     campaign_id = uuid.uuid4()
     return SimpleNamespace(
@@ -45,6 +46,7 @@ def _make_rf(
         original_filename="cv.pdf",
         error_message=None,
         candidate_id=None,
+        pipeline_stage=pipeline_stage,
     )
 
 

@@ -14,6 +14,54 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
+class PipelineStage(str, enum.Enum):
+    """Where a candidate's application sits in the recruiter's review pipeline.
+
+    Loosely, not strictly, synced with the parsing pipeline: a few existing
+    code paths that already set upload_status/review_status also nudge this
+    field forward (APPLIED->PARSING when upload_status becomes PROCESSING;
+    ->EMBEDDING->RANKED as parsing/embedding complete; ->SHORTLISTED/REJECTED
+    when review_status changes). Those nudges are advisory only — recruiters
+    can move this field to any value at any time via the pipeline-stage
+    endpoint, and nothing enforces forward-only or sequential transitions.
+    ASSESSMENT_SENT, INTERVIEW_SCHEDULED, and HIRED have no upstream signal
+    and are set exclusively by recruiter action.
+    """
+
+    APPLIED = "APPLIED"
+    PARSING = "PARSING"
+    EMBEDDING = "EMBEDDING"
+    RANKED = "RANKED"
+    SHORTLISTED = "SHORTLISTED"
+    ASSESSMENT_SENT = "ASSESSMENT_SENT"
+    INTERVIEW_SCHEDULED = "INTERVIEW_SCHEDULED"
+    REJECTED = "REJECTED"
+    HIRED = "HIRED"
+
+
+_PIPELINE_STAGE_ORDER: dict[PipelineStage, int] = {
+    PipelineStage.APPLIED: 0,
+    PipelineStage.PARSING: 1,
+    PipelineStage.EMBEDDING: 2,
+    PipelineStage.RANKED: 3,
+    PipelineStage.SHORTLISTED: 4,
+    PipelineStage.ASSESSMENT_SENT: 5,
+    PipelineStage.INTERVIEW_SCHEDULED: 6,
+    PipelineStage.REJECTED: 7,
+    PipelineStage.HIRED: 8,
+}
+
+
+def is_earlier_pipeline_stage(current: PipelineStage, candidate: PipelineStage) -> bool:
+    """True if `current` precedes `candidate` in the advisory stage ordering.
+
+    Used by the loose-sync nudges to avoid stepping a stage backward (e.g. a
+    late-arriving PROCESSING signal shouldn't downgrade a candidate a
+    recruiter already moved to SHORTLISTED).
+    """
+    return _PIPELINE_STAGE_ORDER[current] < _PIPELINE_STAGE_ORDER[candidate]
+
+
 class UploadStatus(str, enum.Enum):
     PENDING = "PENDING"
     UPLOADED = "UPLOADED"
@@ -76,7 +124,22 @@ class ResumeFile(Base):
         server_default=ReviewStatus.PENDING.value,
     )
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    pipeline_stage: Mapped[PipelineStage] = mapped_column(
+        Enum(PipelineStage, name="pipelinestage"),
+        nullable=False,
+        default=PipelineStage.APPLIED,
+        server_default=PipelineStage.APPLIED.value,
+    )
+    assigned_recruiter_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     campaign: Mapped["Campaign"] = relationship("Campaign", lazy="raise")
-    uploader: Mapped["User | None"] = relationship("User", lazy="raise")
+    uploader: Mapped["User | None"] = relationship(
+        "User", foreign_keys=[uploaded_by], lazy="raise"
+    )
     candidate: Mapped["Candidate | None"] = relationship("Candidate", lazy="raise")
+    assigned_recruiter: Mapped["User | None"] = relationship(
+        "User", foreign_keys=[assigned_recruiter_id], lazy="raise"
+    )

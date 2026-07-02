@@ -1,8 +1,10 @@
 import logging
+import re
 import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, UploadFile, status
+from fastapi.responses import Response
 
 from app.api.deps import CurrentUser, DBSession, RequireRoles
 from app.models.user import User, UserRole
@@ -87,6 +89,38 @@ async def get_resume(
 ) -> ResumeFileResponse:
     rf = await service.get_by_id(resume_id, current_user)
     return ResumeFileResponse.model_validate(rf)
+
+
+def _content_disposition(filename: str) -> str:
+    """Build a Content-Disposition header value safe against header-injection
+    and non-ASCII filenames (RFC 5987 fallback via filename*)."""
+    from urllib.parse import quote
+
+    safe = re.sub(r"[\r\n\"]", "_", filename)
+    return f'attachment; filename="{safe}"; filename*=UTF-8\'\'{quote(filename)}'
+
+
+@router.get(
+    "/resumes/{resume_id}/download",
+    summary="Download a resume file's original content",
+    responses={
+        200: {"description": "Raw file bytes with the original MIME type."},
+        404: {"description": "Resume file not found."},
+    },
+)
+async def download_resume(
+    resume_id: uuid.UUID,
+    service: ResumeServiceDep,
+    storage: StorageDep,
+    current_user: CurrentUser,
+) -> Response:
+    rf = await service.get_by_id(resume_id, current_user)
+    data = await storage.load(rf.storage_path)
+    return Response(
+        content=data,
+        media_type=rf.mime_type,
+        headers={"Content-Disposition": _content_disposition(rf.original_filename)},
+    )
 
 
 @router.get(

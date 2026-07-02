@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth,
     campaigns,
+    candidates,
     dashboard,
     job_descriptions,
     organizations,
@@ -19,6 +20,7 @@ router.include_router(organizations.router, prefix="/organizations", tags=["orga
 router.include_router(users.router, prefix="/users", tags=["users"])
 router.include_router(campaigns.router, prefix="/campaigns", tags=["campaigns"])
 router.include_router(resumes.router, tags=["resumes"])
+router.include_router(candidates.router, prefix="/candidates", tags=["candidates"])
 router.include_router(job_descriptions.router, tags=["job-descriptions"])
 router.include_router(scoring_rules.router, prefix="/scoring-rules", tags=["scoring-rules"])
 router.include_router(rankings.router, tags=["rankings"])

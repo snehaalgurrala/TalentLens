@@ -7,12 +7,14 @@ from fastapi import APIRouter, Depends, Query, status
 from app.api.deps import CurrentUser, DBSession, RequireRoles
 from app.models.campaign import Campaign, CampaignPriority, CampaignStatus, EmploymentType
 from app.models.user import User, UserRole
+from app.models.resume_file import PipelineStage, ReviewStatus
 from app.repositories.campaign import CampaignRepository
 from app.repositories.candidate import CandidateRepository
 from app.repositories.job_description import JobDescriptionRepository
 from app.repositories.parsed_resume import ParsedResumeRepository
 from app.repositories.resume_file import ResumeFileRepository
 from app.repositories.scoring_rule import ScoringRuleRepository
+from app.repositories.user import UserRepository
 from app.schemas.campaign import (
     CampaignCreate,
     CampaignProcessingStatusResponse,
@@ -20,8 +22,10 @@ from app.schemas.campaign import (
     CampaignSummaryResponse,
     CampaignUpdate,
 )
+from app.schemas.candidate_management import CandidateListResponse
 from app.services.campaign import CampaignService
 from app.services.campaign_summary import CampaignSummaryService
+from app.services.candidate_management import CandidateManagementService
 from app.services.candidate_ranking import CandidateRankingService
 from app.services.scoring_rule import ScoringRuleService
 
@@ -51,6 +55,30 @@ def get_campaign_summary_service(db: DBSession) -> CampaignSummaryService:
 
 CampaignSummaryServiceDep = Annotated[
     CampaignSummaryService, Depends(get_campaign_summary_service)
+]
+
+
+def get_candidate_management_service(db: DBSession) -> CandidateManagementService:
+    ranking_service = CandidateRankingService(
+        campaign_repo=CampaignRepository(db),
+        resume_file_repo=ResumeFileRepository(db),
+        parsed_resume_repo=ParsedResumeRepository(db),
+        candidate_repo=CandidateRepository(db),
+        job_description_repo=JobDescriptionRepository(db),
+        scoring_rule_service=ScoringRuleService(ScoringRuleRepository(db), CampaignRepository(db)),
+    )
+    return CandidateManagementService(
+        resume_file_repo=ResumeFileRepository(db),
+        candidate_repo=CandidateRepository(db),
+        parsed_resume_repo=ParsedResumeRepository(db),
+        campaign_repo=CampaignRepository(db),
+        user_repo=UserRepository(db),
+        ranking_service=ranking_service,
+    )
+
+
+CandidateManagementServiceDep = Annotated[
+    CandidateManagementService, Depends(get_candidate_management_service)
 ]
 
 # Candidates cannot create, modify, or delete campaigns.
@@ -195,6 +223,50 @@ async def get_campaign_processing_status(
 ) -> CampaignProcessingStatusResponse:
     await campaign_service.get(campaign_id, current_user)  # 404 if not found / wrong org
     return await summary_service.get_processing_status(campaign_id, current_user)
+
+
+@router.get(
+    "/{campaign_id}/candidates",
+    response_model=CandidateListResponse,
+    summary="List candidates applied to a campaign, with ranking, pipeline, and search/filter support",
+    responses={
+        200: {
+            "description": (
+                "Paginated candidate list. ranking_available=false when the campaign has no "
+                "job description ready to rank against yet — score fields are null in that case."
+            )
+        },
+        403: {"description": "Insufficient role (CANDIDATE not permitted)."},
+        404: {"description": "Campaign not found or belongs to a different organization."},
+    },
+)
+async def list_campaign_candidates(
+    campaign_id: uuid.UUID,
+    service: CandidateManagementServiceDep,
+    current_user: RecruiterUser,
+    search: str | None = Query(None, description="Matches name, email, phone, company, skills, college"),
+    pipeline_stage: PipelineStage | None = Query(None),
+    review_status: ReviewStatus | None = Query(None),
+    assigned_recruiter_id: uuid.UUID | None = Query(None),
+    sort_by: Literal["overall_score", "candidate_name", "applied_at", "years_of_experience"] = Query(
+        "overall_score"
+    ),
+    sort_dir: Literal["asc", "desc"] = Query("desc"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+) -> CandidateListResponse:
+    return await service.list_campaign_candidates(
+        campaign_id,
+        current_user,
+        search=search,
+        pipeline_stage=pipeline_stage,
+        review_status=review_status,
+        assigned_recruiter_id=assigned_recruiter_id,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        skip=skip,
+        limit=limit,
+    )
 
 
 @router.patch(

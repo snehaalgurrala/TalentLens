@@ -29,7 +29,7 @@ from celery import Task
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.models.campaign import Campaign
-from app.models.resume_file import UploadStatus
+from app.models.resume_file import PipelineStage, UploadStatus, is_earlier_pipeline_stage
 from app.repositories.candidate import CandidateRepository
 from app.repositories.parsed_resume import ParsedResumeRepository
 from app.repositories.resume_file import ResumeFileRepository
@@ -153,7 +153,12 @@ async def _run_parse_resume(
             "Starting parse",
             extra={**log_ctx, "status": rf.upload_status.value, "mime_type": rf.mime_type},
         )
-        await rf_repo.update(rf, upload_status=UploadStatus.PROCESSING, error_message=None)
+        stage_update = {}
+        if is_earlier_pipeline_stage(rf.pipeline_stage, PipelineStage.PARSING):
+            stage_update["pipeline_stage"] = PipelineStage.PARSING
+        await rf_repo.update(
+            rf, upload_status=UploadStatus.PROCESSING, error_message=None, **stage_update
+        )
         await session.commit()
 
         # Capture scalars before the session closes (expire_on_commit=False preserves them)
@@ -238,11 +243,15 @@ async def _run_parse_resume(
 
         # Mark ResumeFile as PARSED and link the resolved candidate
         rf = await rf_repo.get_by_id(rf_id)
+        stage_update = {}
+        if is_earlier_pipeline_stage(rf.pipeline_stage, PipelineStage.EMBEDDING):
+            stage_update["pipeline_stage"] = PipelineStage.EMBEDDING
         await rf_repo.update(
             rf,
             upload_status=UploadStatus.PARSED,
             candidate_id=candidate.id,
             error_message=None,
+            **stage_update,
         )
         await session.commit()
         logger.info("ResumeFile marked PARSED", extra=log_ctx)

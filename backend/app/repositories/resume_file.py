@@ -32,6 +32,17 @@ class ResumeFileRepository:
         )
         return list(result.scalars().all())
 
+    async def list_by_ids(self, resume_file_ids: list[uuid.UUID]) -> list[ResumeFile]:
+        if not resume_file_ids:
+            return []
+        result = await self.session.execute(
+            select(ResumeFile).where(
+                ResumeFile.id.in_(resume_file_ids),
+                ResumeFile.is_deleted.is_(False),
+            )
+        )
+        return list(result.scalars().all())
+
     async def create(self, **kwargs: Any) -> ResumeFile:
         rf = ResumeFile(**kwargs)
         self.session.add(rf)

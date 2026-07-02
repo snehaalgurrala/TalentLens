@@ -13,9 +13,14 @@ from app.services.resume_extraction import (
     extract_text_from_docx_bytes,
     extract_text_from_pdf_bytes,
 )
+from app.storage.base import StorageBackend
 
 _UPLOAD_EXTENSIONS = {".pdf", ".docx"}
 _MAX_TEXT_LENGTH = 200_000
+_MIME_BY_EXT = {
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
 
 
 class JobDescriptionService:
@@ -23,9 +28,11 @@ class JobDescriptionService:
         self,
         repo: JobDescriptionRepository,
         campaign_repo: CampaignRepository,
+        storage: StorageBackend,
     ) -> None:
         self.repo = repo
         self.campaign_repo = campaign_repo
+        self.storage = storage
 
     # ── Internal guards ───────────────────────────────────────────────────────
 
@@ -119,10 +126,18 @@ class JobDescriptionService:
             ) from exc
 
         cleaned = self._validate_text(text)
+
+        stored_name = f"{uuid.uuid4()}{ext}"
+        relative_path = f"job-descriptions/{campaign_id}/{stored_name}"
+        await self.storage.save(relative_path, data)
+
         return await self.repo.create(
             campaign_id=campaign_id,
             created_by=user.id,
             original_filename=filename,
+            storage_path=relative_path,
+            mime_type=_MIME_BY_EXT[ext],
+            file_size=len(data),
             raw_text=cleaned,
         )
 
@@ -151,6 +166,20 @@ class JobDescriptionService:
     ) -> list[JobDescription]:
         await self._require_campaign(campaign_id, user)
         return await self.repo.list_by_campaign(campaign_id)
+
+    async def get_file(self, job_description_id: uuid.UUID, user: User) -> tuple[bytes, str, str]:
+        """Returns (raw file bytes, mime type, filename) for the originally
+        uploaded JD file. Only available for JDs created via file upload."""
+        jd = await self.get_by_id(job_description_id, user)
+        if jd.storage_path is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="This job description was pasted as text and has no source file to download.",
+            )
+        data = await self.storage.load(jd.storage_path)
+        filename = jd.original_filename or "job-description"
+        mime_type = jd.mime_type or "application/octet-stream"
+        return data, mime_type, filename
 
     async def delete(self, job_description_id: uuid.UUID, user: User) -> None:
         if user.org_id is None:

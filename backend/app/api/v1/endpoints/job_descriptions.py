@@ -1,8 +1,10 @@
 import logging
 import uuid
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, UploadFile, status
+from fastapi.responses import Response
 
 from app.api.deps import CurrentUser, DBSession, RequireRoles
 from app.models.user import User, UserRole
@@ -10,6 +12,8 @@ from app.repositories.campaign import CampaignRepository
 from app.repositories.job_description import JobDescriptionRepository
 from app.schemas.job_description import JobDescriptionCreate, JobDescriptionResponse
 from app.services.job_description import JobDescriptionService
+from app.storage.base import StorageBackend as StorageBackendType
+from app.storage.factory import get_storage_backend
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +21,14 @@ router = APIRouter()
 
 _require_write_role = RequireRoles(UserRole.RECRUITER, UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN)
 WriteUser = Annotated[User, Depends(_require_write_role)]
+StorageDep = Annotated[StorageBackendType, Depends(get_storage_backend)]
 
 
-def get_job_description_service(db: DBSession) -> JobDescriptionService:
+def get_job_description_service(db: DBSession, storage: StorageDep) -> JobDescriptionService:
     return JobDescriptionService(
         JobDescriptionRepository(db),
         CampaignRepository(db),
+        storage,
     )
 
 
@@ -100,6 +106,31 @@ async def get_job_description(
 ) -> JobDescriptionResponse:
     jd = await service.get_by_id(job_description_id, current_user)
     return JobDescriptionResponse.model_validate(jd)
+
+
+@router.get(
+    "/job-descriptions/{job_description_id}/download",
+    summary="Download the originally uploaded job description file",
+    responses={
+        200: {"description": "The raw file bytes, with the original filename."},
+        404: {
+            "description": (
+                "Job description not found, or it was pasted as text and has no source file."
+            )
+        },
+    },
+)
+async def download_job_description(
+    job_description_id: uuid.UUID,
+    service: JobDescriptionServiceDep,
+    current_user: CurrentUser,
+) -> Response:
+    data, mime_type, filename = await service.get_file(job_description_id, current_user)
+    return Response(
+        content=data,
+        media_type=mime_type,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
 
 
 @router.get(

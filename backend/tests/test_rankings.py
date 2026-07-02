@@ -16,6 +16,7 @@ from httpx import AsyncClient
 from app.api.deps import get_current_user
 from app.api.v1.endpoints.rankings import get_candidate_ranking_service
 from app.main import app
+from app.models.resume_file import ReviewStatus
 from app.models.user import User, UserRole
 from app.services.candidate_ranking import CandidateRankingEntry
 from app.services.matching_service import MatchResult, ScoreExplanation
@@ -69,6 +70,9 @@ def make_entry(**overrides) -> CandidateRankingEntry:
         weaknesses=[],
         match_explanation="Jane Doe scored 90/100 overall (Strong Match).",
         scoring_rule_source="system_default",
+        current_company="Acme Corp",
+        years_of_experience=5.0,
+        review_status=ReviewStatus.PENDING,
     )
     defaults.update(overrides)
     return CandidateRankingEntry(**defaults)

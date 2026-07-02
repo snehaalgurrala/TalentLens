@@ -16,10 +16,11 @@ from fastapi import HTTPException
 from httpx import AsyncClient
 
 from app.api.deps import get_current_user
-from app.api.v1.endpoints.campaigns import get_campaign_service
+from app.api.v1.endpoints.campaigns import get_campaign_service, get_campaign_summary_service
 from app.main import app
-from app.models.campaign import Campaign, CampaignStatus
+from app.models.campaign import Campaign, CampaignPriority, CampaignStatus, EmploymentType
 from app.models.user import User, UserRole
+from app.schemas.campaign import CampaignProcessingStatusResponse, CampaignSummaryResponse
 
 # ── Shared fixtures ───────────────────────────────────────────────────────────
 
@@ -55,6 +56,19 @@ def make_campaign(user: User, **overrides) -> Campaign:
         deleted_at=None,
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
+        job_title=None,
+        department=None,
+        hiring_manager_id=None,
+        recruiter_id=None,
+        employment_type=None,
+        location=None,
+        experience_min_years=None,
+        experience_max_years=None,
+        salary_min=None,
+        salary_max=None,
+        openings_count=1,
+        priority=CampaignPriority.MEDIUM,
+        closing_date=None,
     )
     for k, v in overrides.items():
         object.__setattr__(campaign, k, v)
@@ -67,6 +81,14 @@ def mock_campaign_service():
     app.dependency_overrides[get_campaign_service] = lambda: svc
     yield svc
     app.dependency_overrides.pop(get_campaign_service, None)
+
+
+@pytest.fixture
+def mock_campaign_summary_service():
+    svc = MagicMock()
+    app.dependency_overrides[get_campaign_summary_service] = lambda: svc
+    yield svc
+    app.dependency_overrides.pop(get_campaign_summary_service, None)
 
 
 @pytest.fixture
@@ -165,7 +187,10 @@ class TestListCampaigns:
     async def test_returns_org_scoped_list(
         self, client_no_lifespan: AsyncClient, mock_campaign_service, recruiter: User
     ):
-        campaigns = [make_campaign(recruiter), make_campaign(recruiter, title="Campaign B")]
+        campaigns = [
+            (make_campaign(recruiter), 0, 0),
+            (make_campaign(recruiter, title="Campaign B"), 0, 0),
+        ]
         mock_campaign_service.list_campaigns = AsyncMock(return_value=campaigns)
 
         res = await client_no_lifespan.get(self._url)
@@ -376,4 +401,175 @@ class TestOrgIsolation:
         mock_campaign_service.list_campaigns = AsyncMock(return_value=[])
         res = await client_no_lifespan.get("/api/v1/campaigns/")
         assert res.status_code == 200
-        assert res.json() == []
+
+
+# ── Extended metadata fields ────────────────────────────────────────────────────
+
+class TestCampaignMetadataFields:
+    _url = "/api/v1/campaigns/"
+
+    async def test_create_accepts_full_field_set(
+        self, client_no_lifespan: AsyncClient, mock_campaign_service, recruiter: User
+    ):
+        payload = {
+            "title": "Senior Engineer Campaign",
+            "job_title": "Senior Backend Engineer",
+            "department": "Engineering",
+            "employment_type": "FULL_TIME",
+            "location": "Remote",
+            "experience_min_years": 5,
+            "experience_max_years": 10,
+            "salary_min": 120000,
+            "salary_max": 160000,
+            "openings_count": 2,
+            "priority": "HIGH",
+            "closing_date": "2026-12-31",
+        }
+        campaign = make_campaign(
+            recruiter,
+            job_title="Senior Backend Engineer",
+            department="Engineering",
+            employment_type=EmploymentType.FULL_TIME,
+            openings_count=2,
+            priority=CampaignPriority.HIGH,
+        )
+        mock_campaign_service.create = AsyncMock(return_value=campaign)
+
+        res = await client_no_lifespan.post(self._url, json=payload)
+
+        assert res.status_code == 201
+        body = res.json()
+        assert body["department"] == "Engineering"
+        assert body["priority"] == "HIGH"
+
+    async def test_list_forwards_filters(
+        self, client_no_lifespan: AsyncClient, mock_campaign_service, recruiter: User
+    ):
+        mock_campaign_service.list_campaigns = AsyncMock(return_value=[])
+        res = await client_no_lifespan.get(
+            self._url,
+            params={
+                "search": "engineer",
+                "status": "ACTIVE",
+                "department": "Engineering",
+                "employment_type": "FULL_TIME",
+                "priority": "HIGH",
+                "sort_by": "title",
+                "sort_dir": "asc",
+            },
+        )
+        assert res.status_code == 200
+        _, kwargs = mock_campaign_service.list_campaigns.call_args
+        assert kwargs["search"] == "engineer"
+        assert kwargs["status_filter"] == CampaignStatus.ACTIVE
+        assert kwargs["department"] == "Engineering"
+        assert kwargs["employment_type"] == EmploymentType.FULL_TIME
+        assert kwargs["priority"] == CampaignPriority.HIGH
+        assert kwargs["sort_by"] == "title"
+        assert kwargs["sort_dir"] == "asc"
+
+    async def test_list_includes_resume_counts(
+        self, client_no_lifespan: AsyncClient, mock_campaign_service, recruiter: User
+    ):
+        mock_campaign_service.list_campaigns = AsyncMock(
+            return_value=[(make_campaign(recruiter), 5, 2)]
+        )
+        res = await client_no_lifespan.get(self._url)
+        assert res.status_code == 200
+        body = res.json()
+        assert body[0]["resume_count"] == 5
+        assert body[0]["processing_resume_count"] == 2
+
+
+# ── Campaign summary / processing status ─────────────────────────────────────────
+
+class TestCampaignSummary:
+    async def test_recruiter_can_view_summary(
+        self,
+        client_no_lifespan: AsyncClient,
+        mock_campaign_service,
+        mock_campaign_summary_service,
+        recruiter: User,
+    ):
+        campaign_id = uuid.uuid4()
+        mock_campaign_service.get = AsyncMock(return_value=make_campaign(recruiter))
+        mock_campaign_summary_service.get_summary = AsyncMock(
+            return_value=CampaignSummaryResponse(
+                total_candidates=10,
+                processing_candidates=2,
+                ranked_candidates=8,
+                shortlisted_candidates=3,
+                rejected_candidates=1,
+                average_match_score=72.5,
+            )
+        )
+        res = await client_no_lifespan.get(f"/api/v1/campaigns/{campaign_id}/summary")
+        assert res.status_code == 200
+        body = res.json()
+        assert body["total_candidates"] == 10
+        assert body["average_match_score"] == 72.5
+
+    async def test_candidate_cannot_view_summary(
+        self,
+        client_no_lifespan: AsyncClient,
+        mock_campaign_service,
+        mock_campaign_summary_service,
+        candidate: User,
+    ):
+        res = await client_no_lifespan.get(f"/api/v1/campaigns/{uuid.uuid4()}/summary")
+        assert res.status_code == 403
+
+    async def test_not_found_returns_404(
+        self,
+        client_no_lifespan: AsyncClient,
+        mock_campaign_service,
+        mock_campaign_summary_service,
+        recruiter: User,
+    ):
+        mock_campaign_service.get = AsyncMock(
+            side_effect=HTTPException(404, "Campaign not found.")
+        )
+        res = await client_no_lifespan.get(f"/api/v1/campaigns/{uuid.uuid4()}/summary")
+        assert res.status_code == 404
+
+
+class TestCampaignProcessingStatus:
+    async def test_recruiter_can_view_processing_status(
+        self,
+        client_no_lifespan: AsyncClient,
+        mock_campaign_service,
+        mock_campaign_summary_service,
+        recruiter: User,
+    ):
+        campaign_id = uuid.uuid4()
+        mock_campaign_service.get = AsyncMock(return_value=make_campaign(recruiter))
+        mock_campaign_summary_service.get_processing_status = AsyncMock(
+            return_value=CampaignProcessingStatusResponse(
+                uploaded_count=1,
+                parsing_count=2,
+                embedding_count=3,
+                ready_for_ranking_count=4,
+                completed_count=4,
+                failed_count=0,
+                total_count=10,
+            )
+        )
+        res = await client_no_lifespan.get(
+            f"/api/v1/campaigns/{campaign_id}/processing-status"
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["total_count"] == 10
+        assert body["ready_for_ranking_count"] == 4
+
+    async def test_candidate_cannot_view_processing_status(
+        self,
+        client_no_lifespan: AsyncClient,
+        mock_campaign_service,
+        mock_campaign_summary_service,
+        candidate: User,
+    ):
+        res = await client_no_lifespan.get(
+            f"/api/v1/campaigns/{uuid.uuid4()}/processing-status"
+        )
+        assert res.status_code == 403

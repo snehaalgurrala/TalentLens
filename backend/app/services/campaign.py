@@ -1,8 +1,9 @@
 import uuid
+from datetime import date
 
 from fastapi import HTTPException, status
 
-from app.models.campaign import Campaign
+from app.models.campaign import Campaign, CampaignPriority, CampaignStatus, EmploymentType
 from app.models.user import User, UserRole
 from app.repositories.campaign import CampaignRepository
 from app.schemas.campaign import CampaignCreate, CampaignUpdate
@@ -36,19 +37,45 @@ class CampaignService:
 
     async def create(self, data: CampaignCreate, user: User) -> Campaign:
         org_id = self._require_org(user)
-        return await self.repo.create(
-            org_id=org_id,
-            created_by=user.id,
-            title=data.title.strip(),
-            description=data.description,
-            status=data.status,
-        )
+        payload = data.model_dump()
+        payload["title"] = payload["title"].strip()
+        return await self.repo.create(org_id=org_id, created_by=user.id, **payload)
 
     async def list_campaigns(
-        self, user: User, *, skip: int = 0, limit: int = 50
-    ) -> list[Campaign]:
+        self,
+        user: User,
+        *,
+        skip: int = 0,
+        limit: int = 50,
+        search: str | None = None,
+        status_filter: CampaignStatus | None = None,
+        department: str | None = None,
+        employment_type: EmploymentType | None = None,
+        priority: CampaignPriority | None = None,
+        recruiter_id: uuid.UUID | None = None,
+        hiring_manager_id: uuid.UUID | None = None,
+        created_after: date | None = None,
+        created_before: date | None = None,
+        sort_by: str = "created_at",
+        sort_dir: str = "desc",
+    ) -> list[tuple[Campaign, int, int]]:
         org_id = self._require_org(user)
-        return await self.repo.list_by_org(org_id, skip=skip, limit=limit)
+        return await self.repo.list_by_org_filtered(
+            org_id,
+            search=search,
+            status=status_filter,
+            department=department,
+            employment_type=employment_type,
+            priority=priority,
+            recruiter_id=recruiter_id,
+            hiring_manager_id=hiring_manager_id,
+            created_after=created_after,
+            created_before=created_before,
+            sort_by=sort_by,
+            sort_dir=sort_dir,
+            skip=skip,
+            limit=limit,
+        )
 
     async def get(self, campaign_id: uuid.UUID, user: User) -> Campaign:
         org_id = self._require_org(user)

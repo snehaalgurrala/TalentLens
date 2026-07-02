@@ -1,4 +1,5 @@
 from typing import Any
+from urllib.parse import quote
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -77,8 +78,12 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def assemble_urls(self) -> "Settings":
         if not self.DATABASE_URL:
+            # URL-encode credentials — a raw '@' or ':' in the password would
+            # otherwise be misparsed as the start of the host segment.
+            user = quote(self.POSTGRES_USER, safe="")
+            password = quote(self.POSTGRES_PASSWORD, safe="")
             self.DATABASE_URL = (
-                f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+                f"postgresql+asyncpg://{user}:{password}"
                 f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
             )
         elif "asyncpg" not in self.DATABASE_URL:

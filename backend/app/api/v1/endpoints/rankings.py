@@ -58,6 +58,9 @@ def _to_response(entry) -> CandidateRankingResponse:
         weaknesses=entry.weaknesses,
         match_explanation=entry.match_explanation,
         scoring_rule_source=entry.scoring_rule_source,
+        current_company=entry.current_company,
+        years_of_experience=entry.years_of_experience,
+        review_status=entry.review_status,
     )
 
 

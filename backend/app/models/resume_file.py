@@ -22,6 +22,18 @@ class UploadStatus(str, enum.Enum):
     FAILED = "FAILED"
 
 
+class ReviewStatus(str, enum.Enum):
+    """A recruiter's hiring decision for this resume, distinct from
+    UploadStatus (which only tracks the parsing pipeline). Nothing sets
+    this to SHORTLISTED/REJECTED yet — that's a future recruiter-actions
+    feature — but the dashboard reads it so those numbers become real the
+    moment that feature lands."""
+
+    PENDING = "PENDING"
+    SHORTLISTED = "SHORTLISTED"
+    REJECTED = "REJECTED"
+
+
 class ResumeFile(Base):
     __tablename__ = "resume_files"
 
@@ -57,6 +69,13 @@ class ResumeFile(Base):
     )
     # Populated when upload_status == FAILED
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_status: Mapped[ReviewStatus] = mapped_column(
+        Enum(ReviewStatus, name="reviewstatus"),
+        nullable=False,
+        default=ReviewStatus.PENDING,
+        server_default=ReviewStatus.PENDING.value,
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     campaign: Mapped["Campaign"] = relationship("Campaign", lazy="raise")
     uploader: Mapped["User | None"] = relationship("User", lazy="raise")

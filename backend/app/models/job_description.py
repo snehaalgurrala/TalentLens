@@ -4,7 +4,18 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, Uuid, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Uuid,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -34,6 +45,11 @@ class JobDescription(Base):
         Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Populated only when the JD was created via file upload (raw text is
+    # always extracted and kept regardless, for parsing/preview).
+    storage_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(String(127), nullable=True)
+    file_size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     raw_text: Mapped[str] = mapped_column(Text, nullable=False)
     structured_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     parser_version: Mapped[str | None] = mapped_column(String(50), nullable=True)

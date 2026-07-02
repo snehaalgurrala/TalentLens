@@ -19,6 +19,9 @@ class JobDescriptionResponse(BaseModel):
     campaign_id: UUID
     created_by: UUID | None
     original_filename: str | None
+    storage_path: str | None
+    mime_type: str | None
+    file_size: int | None
     raw_text: str
     structured_json: dict[str, Any] | None
     parser_version: str | None

@@ -422,18 +422,63 @@ class TestDeleteJobDescription:
         assert res.status_code == 404
 
 
+# ── Download ──────────────────────────────────────────────────────────────────
+
+class TestDownloadJobDescription:
+    async def test_recruiter_can_download_uploaded_file(
+        self, client_no_lifespan: AsyncClient, mock_jd_service, recruiter: User
+    ):
+        mock_jd_service.get_file = AsyncMock(
+            return_value=(b"%PDF-1.4 fake pdf bytes", "application/pdf", "job-description.pdf")
+        )
+        res = await client_no_lifespan.get(
+            f"/api/v1/job-descriptions/{uuid.uuid4()}/download"
+        )
+        assert res.status_code == 200
+        assert res.content == b"%PDF-1.4 fake pdf bytes"
+        assert res.headers["content-type"] == "application/pdf"
+        assert "job-description.pdf" in res.headers["content-disposition"]
+
+    async def test_text_only_jd_returns_404(
+        self, client_no_lifespan: AsyncClient, mock_jd_service, recruiter: User
+    ):
+        mock_jd_service.get_file = AsyncMock(
+            side_effect=HTTPException(
+                404, "This job description was pasted as text and has no source file to download."
+            )
+        )
+        res = await client_no_lifespan.get(
+            f"/api/v1/job-descriptions/{uuid.uuid4()}/download"
+        )
+        assert res.status_code == 404
+
+    async def test_not_found_returns_404(
+        self, client_no_lifespan: AsyncClient, mock_jd_service, recruiter: User
+    ):
+        mock_jd_service.get_file = AsyncMock(
+            side_effect=HTTPException(404, "Job description not found.")
+        )
+        res = await client_no_lifespan.get(
+            f"/api/v1/job-descriptions/{uuid.uuid4()}/download"
+        )
+        assert res.status_code == 404
+
+
 # ── Service validation (no HTTP layer) ───────────────────────────────────────
 
 
 def _make_service() -> JobDescriptionService:
     from app.repositories.campaign import CampaignRepository
     from app.repositories.job_description import JobDescriptionRepository
+    from app.storage.base import StorageBackend
 
     repo = MagicMock(spec=JobDescriptionRepository)
     campaign_repo = MagicMock(spec=CampaignRepository)
+    storage = MagicMock(spec=StorageBackend)
     repo.create = AsyncMock()
     campaign_repo.get_by_id = AsyncMock()
-    return JobDescriptionService(repo, campaign_repo)
+    storage.save = AsyncMock()
+    return JobDescriptionService(repo, campaign_repo, storage)
 
 
 class TestServiceTextValidation:

@@ -23,7 +23,7 @@ from fastapi import HTTPException, status
 
 from app.models.embedding import EmbeddingStatus
 from app.models.job_description import ParsingStatus
-from app.models.resume_file import UploadStatus
+from app.models.resume_file import ReviewStatus, UploadStatus
 from app.services.matching_service import MatchingService, MatchResult
 from app.services.scoring_rule import compute_score_breakdown
 
@@ -94,6 +94,9 @@ class CandidateRankingEntry:
     weaknesses: list[str]
     match_explanation: str
     scoring_rule_source: str
+    current_company: str | None
+    years_of_experience: float | None
+    review_status: ReviewStatus
 
 
 # ── Service ──────────────────────────────────────────────────────────────────
@@ -261,6 +264,9 @@ class CandidateRankingService:
             weaknesses=weaknesses,
             match_explanation=explanation,
             scoring_rule_source=rule.source,
+            current_company=candidate.current_company,
+            years_of_experience=candidate.years_of_experience,
+            review_status=resume_file.review_status,
         )
 
     def _recommendation(self, score: float) -> str:

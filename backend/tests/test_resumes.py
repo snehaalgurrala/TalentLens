@@ -28,7 +28,7 @@ from app.api.deps import get_current_user
 from app.api.v1.endpoints.resumes import get_resume_service
 from app.main import app
 from app.models.campaign import Campaign, CampaignStatus
-from app.models.resume_file import ResumeFile, UploadStatus
+from app.models.resume_file import ResumeFile, ReviewStatus, UploadStatus
 from app.models.user import User, UserRole
 from app.services.resume_file import ResumeFileService
 
@@ -67,6 +67,8 @@ def make_resume_file(user: User, **overrides) -> ResumeFile:
         uploaded_by=user.id,
         candidate_id=None,
         error_message=None,
+        review_status=ReviewStatus.PENDING,
+        reviewed_at=None,
         is_deleted=False,
         deleted_at=None,
         uploaded_at=datetime.now(UTC),

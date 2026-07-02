@@ -23,6 +23,10 @@ class LocalStorageBackend(StorageBackend):
         target = self._base / storage_path
         await asyncio.to_thread(self._unlink, target)
 
+    async def load(self, storage_path: str) -> bytes:
+        target = self._base / storage_path
+        return await asyncio.to_thread(target.read_bytes)
+
     # ── sync helpers (run inside to_thread) ──────────────────────────────────
 
     @staticmethod

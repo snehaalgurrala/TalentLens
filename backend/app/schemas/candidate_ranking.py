@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+from app.models.resume_file import ReviewStatus
+
 
 class RankingSubScores(BaseModel):
     semantic_score: int
@@ -27,3 +29,6 @@ class CandidateRankingResponse(BaseModel):
     weaknesses: list[str]
     match_explanation: str
     scoring_rule_source: Literal["campaign_override", "organization_default", "system_default"]
+    current_company: str | None
+    years_of_experience: float | None
+    review_status: ReviewStatus

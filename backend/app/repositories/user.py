@@ -4,7 +4,7 @@ from typing import Any
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.user import User
+from app.models.user import User, UserRole
 
 
 class UserRepository:
@@ -33,3 +33,16 @@ class UserRepository:
             update(User).where(User.id == user_id).values(refresh_token_hash=token_hash)
         )
         await self.session.flush()
+
+    async def list_by_org(
+        self, org_id: uuid.UUID, roles: list[UserRole] | None = None
+    ) -> list[User]:
+        stmt = (
+            select(User)
+            .where(User.org_id == org_id, User.is_active.is_(True))
+            .order_by(User.full_name.asc())
+        )
+        if roles:
+            stmt = stmt.where(User.role.in_(roles))
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

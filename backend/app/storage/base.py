@@ -9,3 +9,7 @@ class StorageBackend(ABC):
     @abstractmethod
     async def delete(self, storage_path: str) -> None:
         """Remove the stored file. Must be a no-op if the file is absent."""
+
+    @abstractmethod
+    async def load(self, storage_path: str) -> bytes:
+        """Read back a previously saved file's raw bytes."""

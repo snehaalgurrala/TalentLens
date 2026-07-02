@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.resume_file import UploadStatus
+from app.models.resume_file import ReviewStatus, UploadStatus
 
 
 class ResumeFileResponse(BaseModel):
@@ -20,6 +20,7 @@ class ResumeFileResponse(BaseModel):
     uploaded_by: UUID | None
     candidate_id: UUID | None
     error_message: str | None
+    review_status: ReviewStatus
     is_deleted: bool
     uploaded_at: datetime
 

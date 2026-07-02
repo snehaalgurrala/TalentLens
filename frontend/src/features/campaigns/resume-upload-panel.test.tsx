@@ -32,6 +32,9 @@ const EXISTING_RESUME: ResumeFile = {
   review_status: "PENDING",
   is_deleted: false,
   uploaded_at: "2026-06-01T00:00:00Z",
+  pipeline_stage: "APPLIED",
+  assigned_recruiter_id: null,
+  notes: null,
 }
 
 function renderWithClient(ui: React.ReactElement) {

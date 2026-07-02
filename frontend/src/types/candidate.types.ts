@@ -1,3 +1,5 @@
+import type { UserSummary } from "./user.types"
+
 export interface RankingSubScores {
   semantic_score: number
   skills_score: number
@@ -32,6 +34,17 @@ export type UploadStatus = "PENDING" | "UPLOADED" | "PROCESSING" | "PARSED" | "F
 
 export type ReviewStatus = "PENDING" | "SHORTLISTED" | "REJECTED"
 
+export type PipelineStage =
+  | "APPLIED"
+  | "PARSING"
+  | "EMBEDDING"
+  | "RANKED"
+  | "SHORTLISTED"
+  | "ASSESSMENT_SENT"
+  | "INTERVIEW_SCHEDULED"
+  | "REJECTED"
+  | "HIRED"
+
 export interface ResumeFile {
   id: string
   campaign_id: string
@@ -47,9 +60,73 @@ export interface ResumeFile {
   review_status: ReviewStatus
   is_deleted: boolean
   uploaded_at: string
+  pipeline_stage: PipelineStage
+  assigned_recruiter_id: string | null
+  notes: string | null
 }
 
 export interface UploadResponse {
   uploaded: ResumeFile[]
   count: number
+}
+
+export interface EducationItem {
+  institution: string | null
+  degree: string | null
+  field: string | null
+}
+
+export interface CandidateListItem {
+  resume_file_id: string
+  candidate_id: string
+  candidate_name: string
+  email: string | null
+  phone: string | null
+  location: string | null
+  current_company: string | null
+  current_role: string | null
+  years_of_experience: number | null
+  skills: string[]
+  education: EducationItem[]
+
+  rank: number | null
+  overall_score: number | null
+  sub_scores: RankingSubScores | null
+  recommendation: RankingRecommendation | null
+
+  upload_status: UploadStatus
+  review_status: ReviewStatus
+  pipeline_stage: PipelineStage
+  assigned_recruiter: UserSummary | null
+  notes: string | null
+  applied_at: string
+}
+
+export interface CandidateListResponse {
+  items: CandidateListItem[]
+  total: number
+  skip: number
+  limit: number
+  ranking_available: boolean
+}
+
+export interface CandidateListFilters {
+  search?: string
+  pipeline_stage?: PipelineStage
+  review_status?: ReviewStatus
+  assigned_recruiter_id?: string
+  sort_by?: "overall_score" | "candidate_name" | "applied_at" | "years_of_experience"
+  sort_dir?: "asc" | "desc"
+  skip?: number
+  limit?: number
+}
+
+export interface BulkActionFailure {
+  id: string
+  reason: string
+}
+
+export interface BulkActionResult {
+  succeeded: string[]
+  failed: BulkActionFailure[]
 }

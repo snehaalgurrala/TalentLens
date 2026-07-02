@@ -8,7 +8,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { SearchInput } from "@/components/ui/search-input"
 import { Stack } from "@/components/layout/stack"
-import { useCampaigns } from "@/hooks"
+import { useCampaigns, useDebouncedValue } from "@/hooks"
 import { campaignKeys } from "@/hooks/use-campaigns"
 import { campaignService } from "@/services/campaign.service"
 import { useQueryClient } from "@tanstack/react-query"
@@ -23,15 +23,6 @@ import { DashboardErrorState } from "@/features/dashboard"
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 350
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = React.useState(value)
-  React.useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delayMs)
-    return () => clearTimeout(timer)
-  }, [value, delayMs])
-  return debounced
-}
 
 function CampaignsListView() {
   const router = useRouter()

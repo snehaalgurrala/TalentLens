@@ -1,11 +1,11 @@
 import hashlib
-from datetime import datetime, timedelta, timezone
+import secrets
+from datetime import UTC, datetime, timedelta
 
 import bcrypt
 import jwt
 
 from app.core.config import settings
-
 
 # ── Password hashing ──────────────────────────────────────────────────────────
 
@@ -27,10 +27,15 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def generate_invitation_token() -> str:
+    """A cryptographically random, URL-safe token — shown to the inviter once."""
+    return secrets.token_urlsafe(32)
+
+
 # ── JWT creation ─────────────────────────────────────────────────────────────
 
 def create_access_token(user_id: str, role: str, org_id: str | None) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": user_id,
         "role": role,
@@ -43,7 +48,7 @@ def create_access_token(user_id: str, role: str, org_id: str | None) -> str:
 
 
 def create_refresh_token(user_id: str) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": user_id,
         "type": "refresh",

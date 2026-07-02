@@ -7,7 +7,12 @@ from app.main import app
 
 @pytest.fixture
 async def client():
-    async with LifespanManager(app):
+    """
+    Full client with lifespan (requires DB/Redis). startup_timeout is raised
+    from asgi_lifespan's 5s default because loading the local sentence-
+    transformers embedding model on startup can take longer than that.
+    """
+    async with LifespanManager(app, startup_timeout=60, shutdown_timeout=30):
         async with AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test",

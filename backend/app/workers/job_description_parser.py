@@ -9,6 +9,7 @@ parsing there is no extraction phase here.
   Phase 2 — POST raw_text to the AI service, receive structured JSON (no DB).
   Phase 3 — Persist structured_json + parser_version + parsed_at, mark COMPLETED
             (own DB transaction).
+  Phase 4 — Dispatch generate_job_description_embedding (separate task, own retries).
 
 Retry policy      : up to 3 retries with exponential back-off (30 s, 60 s, 120 s).
 Permanent errors   : 4xx AI responses — no retry, status → FAILED.
@@ -21,7 +22,7 @@ Idempotency        : A job description already in COMPLETED state is silently sk
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -32,6 +33,7 @@ from app.db.session import AsyncSessionLocal
 from app.models.job_description import ParsingStatus
 from app.repositories.job_description import JobDescriptionRepository
 from app.workers.celery_app import celery_app
+from app.workers.embedding_worker import generate_job_description_embedding
 
 logger = logging.getLogger(__name__)
 
@@ -65,14 +67,20 @@ async def _call_ai_service(
 # ── Core async implementation ─────────────────────────────────────────────────
 
 
+def _enqueue_job_description_embedding(job_description_id: str) -> None:
+    generate_job_description_embedding.delay(job_description_id)
+
+
 async def _run_parse_job_description(
     job_description_id_str: str,
     *,
     _session_factory: Any = None,
     _http_client: httpx.AsyncClient | None = None,
+    _embedding_dispatcher: Any = None,
 ) -> None:
     """Full parse workflow. Accepts optional overrides for testability."""
     factory = _session_factory or AsyncSessionLocal
+    dispatch_embedding = _embedding_dispatcher or _enqueue_job_description_embedding
     jd_id = uuid.UUID(job_description_id_str)
     log_ctx = {"job_description_id": job_description_id_str}
 
@@ -132,12 +140,16 @@ async def _run_parse_job_description(
             jd,
             structured_json=structured,
             parser_version=_PARSER_VERSION,
-            parsed_at=datetime.now(timezone.utc),
+            parsed_at=datetime.now(UTC),
             parsing_status=ParsingStatus.COMPLETED,
             parsing_error=None,
         )
         await session.commit()
         logger.info("JobDescription marked COMPLETED", extra=log_ctx)
+
+    # ── Phase 4: Dispatch embedding generation ───────────────────────────────
+    dispatch_embedding(job_description_id_str)
+    logger.info("Dispatched embedding generation", extra=log_ctx)
 
 
 async def _mark_failed(

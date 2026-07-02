@@ -15,7 +15,7 @@ Strategy (service tests):
 """
 import io
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -47,8 +47,8 @@ def make_user(role: UserRole = UserRole.RECRUITER, org_id: uuid.UUID | None = _O
         org_id=org_id,
         is_active=True,
         refresh_token_hash=None,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
 
 
@@ -69,8 +69,8 @@ def make_job_description(user: User, **overrides) -> JobDescription:
         embedding_generated_at=None,
         is_deleted=False,
         deleted_at=None,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     for k, v in overrides.items():
         object.__setattr__(jd, k, v)
@@ -87,8 +87,8 @@ def make_campaign(org_id: uuid.UUID = _ORG_ID) -> Campaign:
         status=CampaignStatus.ACTIVE,
         is_deleted=False,
         deleted_at=None,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
 
 
@@ -300,7 +300,7 @@ class TestGetJobDescription:
             parsing_status=ParsingStatus.COMPLETED,
             structured_json={"required_skills": ["Python"]},
             parser_version="v1",
-            parsed_at=datetime.now(timezone.utc),
+            parsed_at=datetime.now(UTC),
         )
         mock_jd_service.get_by_id = AsyncMock(return_value=jd)
 

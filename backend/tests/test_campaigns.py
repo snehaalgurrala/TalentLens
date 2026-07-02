@@ -8,7 +8,7 @@ Strategy:
     without any service involvement.
 """
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -20,7 +20,6 @@ from app.api.v1.endpoints.campaigns import get_campaign_service
 from app.main import app
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.user import User, UserRole
-from app.schemas.campaign import CampaignResponse
 
 # ── Shared fixtures ───────────────────────────────────────────────────────────
 
@@ -38,8 +37,8 @@ def make_user(role: UserRole = UserRole.RECRUITER, org_id: uuid.UUID | None = _O
         org_id=org_id,
         is_active=True,
         refresh_token_hash=None,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     return user
 
@@ -54,8 +53,8 @@ def make_campaign(user: User, **overrides) -> Campaign:
         status=CampaignStatus.DRAFT,
         is_deleted=False,
         deleted_at=None,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     for k, v in overrides.items():
         object.__setattr__(campaign, k, v)

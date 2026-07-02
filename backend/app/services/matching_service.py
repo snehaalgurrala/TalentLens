@@ -277,7 +277,15 @@ class MatchingService:
             raise ValueError("resume.structured_json is required for matching.")
         if not jd_data:
             raise ValueError("job_description.structured_json is required for matching.")
-        if not resume_embedding or not jd_embedding:
+        # Embeddings may come back from pgvector as numpy arrays, whose
+        # truthiness is ambiguous for more than one element — check
+        # presence/length explicitly rather than with a bare `not`.
+        if (
+            resume_embedding is None
+            or jd_embedding is None
+            or len(resume_embedding) == 0
+            or len(jd_embedding) == 0
+        ):
             raise ValueError("Both resume_embedding and jd_embedding are required.")
 
         structured_resume = resume_data.get("structured_resume") or {}

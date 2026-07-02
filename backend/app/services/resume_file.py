@@ -10,6 +10,7 @@ from app.models.resume_file import ResumeFile, UploadStatus
 from app.models.user import User, UserRole
 from app.repositories.campaign import CampaignRepository
 from app.repositories.resume_file import ResumeFileRepository
+from app.services.resume_extraction import ZipSafetyError, validate_zip_safety
 from app.storage.base import StorageBackend
 
 # Extensions accepted directly in an upload
@@ -98,6 +99,14 @@ class ResumeFileService:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"'{zip_filename}' is not a valid ZIP file.",
+            )
+
+        try:
+            validate_zip_safety(zf)
+        except ZipSafetyError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"'{zip_filename}': {exc}",
             )
 
         results: list[tuple[str, bytes, str]] = []

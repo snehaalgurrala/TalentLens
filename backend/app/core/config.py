@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     LOCAL_STORAGE_PATH: str = "storage/resumes"
     MAX_UPLOAD_SIZE_MB: int = 10
 
+    # ── ZIP archive safety limits (zip-bomb protection) ────────
+    ZIP_MAX_ENTRIES: int = 100
+    ZIP_MAX_UNCOMPRESSED_TOTAL_MB: int = 50
+    ZIP_MAX_COMPRESSION_RATIO: int = 100
+
     # AI Service
     AI_SERVICE_URL: str = "http://ai-service:8001"
     AI_SERVICE_TIMEOUT: int = 30

@@ -16,7 +16,7 @@ Strategy (service tests):
 import io
 import uuid
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -49,8 +49,8 @@ def make_user(role: UserRole = UserRole.RECRUITER, org_id: uuid.UUID | None = _O
         org_id=org_id,
         is_active=True,
         refresh_token_hash=None,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
 
 
@@ -69,7 +69,7 @@ def make_resume_file(user: User, **overrides) -> ResumeFile:
         error_message=None,
         is_deleted=False,
         deleted_at=None,
-        uploaded_at=datetime.now(timezone.utc),
+        uploaded_at=datetime.now(UTC),
     )
     for k, v in overrides.items():
         object.__setattr__(rf, k, v)
@@ -86,8 +86,8 @@ def make_campaign(org_id: uuid.UUID = _ORG_ID) -> Campaign:
         status=CampaignStatus.ACTIVE,
         is_deleted=False,
         deleted_at=None,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
 
 
@@ -692,6 +692,65 @@ class TestServiceFileValidation:
             )
         assert exc_info.value.status_code == 422
         assert "no supported" in exc_info.value.detail
+
+    async def test_zip_rejects_too_many_entries(self, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "ZIP_MAX_ENTRIES", 2)
+
+        svc = _make_service()
+        user = make_user()
+        svc.campaign_repo.get_by_id = AsyncMock(return_value=make_campaign())
+
+        zip_content = make_zip({"a.pdf": b"%PDF a", "b.pdf": b"%PDF b", "c.pdf": b"%PDF c"})
+
+        with pytest.raises(HTTPException) as exc_info:
+            await svc.upload(
+                _CAMPAIGN_ID, [make_upload_file("batch.zip", zip_content)], user
+            )
+        assert exc_info.value.status_code == 422
+        assert "entries" in exc_info.value.detail
+
+    async def test_zip_rejects_uncompressed_size_over_limit(self, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "ZIP_MAX_UNCOMPRESSED_TOTAL_MB", 0)
+
+        svc = _make_service()
+        user = make_user()
+        svc.campaign_repo.get_by_id = AsyncMock(return_value=make_campaign())
+
+        zip_content = make_zip({"a.pdf": b"%PDF" * 1000})
+
+        with pytest.raises(HTTPException) as exc_info:
+            await svc.upload(
+                _CAMPAIGN_ID, [make_upload_file("batch.zip", zip_content)], user
+            )
+        assert exc_info.value.status_code == 422
+        assert "uncompressed size" in exc_info.value.detail
+
+    async def test_zip_rejects_high_compression_ratio(self, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "ZIP_MAX_COMPRESSION_RATIO", 5)
+
+        svc = _make_service()
+        user = make_user()
+        svc.campaign_repo.get_by_id = AsyncMock(return_value=make_campaign())
+
+        # Highly compressible content — a real zip bomb pattern — triggers
+        # the ratio check even though the compressed upload itself is tiny.
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("bomb.pdf", b"0" * 1_000_000)
+        zip_content = buf.getvalue()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await svc.upload(
+                _CAMPAIGN_ID, [make_upload_file("batch.zip", zip_content)], user
+            )
+        assert exc_info.value.status_code == 422
+        assert "compression ratio" in exc_info.value.detail
 
     async def test_campaign_not_found_raises_404(self):
         svc = _make_service()

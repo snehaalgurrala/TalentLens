@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 import jwt
 from fastapi import HTTPException, status
@@ -11,14 +12,21 @@ from app.core.security import (
     hash_token,
     verify_password,
 )
-from app.models.user import User
+from app.models.organization_invitation import InvitationStatus
+from app.models.user import User, UserRole
+from app.repositories.organization_invitation import OrganizationInvitationRepository
 from app.repositories.user import UserRepository
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 
 
 class AuthService:
-    def __init__(self, user_repo: UserRepository) -> None:
+    def __init__(
+        self,
+        user_repo: UserRepository,
+        invitation_repo: OrganizationInvitationRepository,
+    ) -> None:
         self.user_repo = user_repo
+        self.invitation_repo = invitation_repo
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
@@ -39,17 +47,38 @@ class AuthService:
 
     async def register(self, data: RegisterRequest) -> tuple[User, TokenResponse]:
         email = data.email.lower().strip()
+
+        invalid_invitation = HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invitation token is invalid, expired, or already used.",
+        )
+        invitation = await self.invitation_repo.get_by_token_hash(
+            hash_token(data.invitation_token)
+        )
+        if invitation is None or invitation.status != InvitationStatus.PENDING:
+            raise invalid_invitation
+        if invitation.expires_at < datetime.now(UTC):
+            raise invalid_invitation
+        if invitation.email.lower() != email:
+            raise invalid_invitation
+
         if await self.user_repo.get_by_email(email):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="An account with this email already exists.",
             )
+
         user = await self.user_repo.create(
             email=email,
             full_name=data.full_name.strip(),
             password_hash=hash_password(data.password),
-            role=data.role,
-            org_id=data.org_id,
+            role=UserRole.RECRUITER,
+            org_id=invitation.org_id,
+        )
+        await self.invitation_repo.update(
+            invitation,
+            status=InvitationStatus.ACCEPTED,
+            accepted_at=datetime.now(UTC),
         )
         tokens = self._make_tokens(user)
         await self._rotate_refresh_token(user, tokens)

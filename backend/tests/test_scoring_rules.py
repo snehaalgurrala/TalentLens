@@ -8,7 +8,7 @@ Strategy (mirrors tests/test_campaigns.py):
     without any service involvement.
 """
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -37,8 +37,8 @@ def make_user(role: UserRole = UserRole.RECRUITER, org_id: uuid.UUID | None = _O
         org_id=org_id,
         is_active=True,
         refresh_token_hash=None,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
 
 
@@ -56,8 +56,8 @@ def make_rule(user: User, campaign_id: uuid.UUID | None = None, **overrides) -> 
         certification_weight=0.10,
         preferred_company_bonus=0.0,
         preferred_companies=[],
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     for k, v in overrides.items():
         object.__setattr__(rule, k, v)

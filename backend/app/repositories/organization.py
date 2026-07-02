@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,3 +22,10 @@ class OrganizationRepository:
             select(Organization).where(Organization.slug == slug)
         )
         return result.scalar_one_or_none()
+
+    async def create(self, **kwargs: Any) -> Organization:
+        organization = Organization(**kwargs)
+        self.session.add(organization)
+        await self.session.flush()
+        await self.session.refresh(organization)
+        return organization

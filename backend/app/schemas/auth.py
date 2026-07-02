@@ -1,16 +1,18 @@
-from uuid import UUID
-
 from pydantic import BaseModel, EmailStr, Field
-
-from app.models.user import UserRole
 
 
 class RegisterRequest(BaseModel):
+    """
+    Public registration always creates a RECRUITER in the organization tied
+    to a valid invitation — clients can never choose their own role or
+    organization. Creating the first ORG_ADMIN of a new organization goes
+    through POST /organizations/bootstrap instead.
+    """
+
     email: EmailStr
     password: str = Field(min_length=8, max_length=128, description="Minimum 8 characters")
     full_name: str = Field(min_length=1, max_length=255)
-    role: UserRole = UserRole.CANDIDATE
-    org_id: UUID | None = None
+    invitation_token: str = Field(min_length=1)
 
 
 class LoginRequest(BaseModel):

@@ -14,6 +14,39 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: talentlens
+          POSTGRES_USER: talentlens_user
+          POSTGRES_PASSWORD: change-me-please
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U talentlens_user -d talentlens"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: talentlens
+      POSTGRES_USER: talentlens_user
+      POSTGRES_PASSWORD: change-me-please
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+      JWT_SECRET: ci-test-secret-not-for-production
+      LOCAL_EMBEDDING_MODEL: sentence-transformers/all-MiniLM-L6-v2
     steps:
       - uses: actions/checkout@v4
 
@@ -31,6 +64,14 @@ jobs:
 
       - name: Type check (mypy)
         run: mypy .
+
+      - name: Create required Postgres extensions
+        run: |
+          PGPASSWORD=change-me-please psql -h localhost -U talentlens_user -d talentlens -c \
+            'CREATE EXTENSION IF NOT EXISTS "uuid-ossp"; CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pg_trgm;'
+
+      - name: Run database migrations
+        run: alembic upgrade head
 
       - name: Tests (pytest)
         run: pytest --tb=short -q

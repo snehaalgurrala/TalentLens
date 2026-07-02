@@ -14,12 +14,14 @@ from pypdf import PdfWriter
 
 from app.services.resume_extraction import (
     ExtractionError,
+    ZipSafetyError,
     detect_file_type,
     extract_text_from_docx,
     extract_text_from_docx_bytes,
     extract_text_from_pdf,
     extract_text_from_pdf_bytes,
     extract_text_from_zip,
+    validate_zip_safety,
 )
 
 # ── In-memory fixture builders ────────────────────────────────────────────────
@@ -273,6 +275,86 @@ class TestExtractTextFromZip:
         assert len(results) == 3
         names = {r[0] for r in results}
         assert names == {"alice.pdf", "bob.pdf", "carol.pdf"}
+
+    async def test_too_many_entries_raises(self, tmp_path, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "ZIP_MAX_ENTRIES", 2)
+        path = tmp_path / "many.zip"
+        path.write_bytes(_make_zip({
+            "a.pdf": _make_pdf(), "b.pdf": _make_pdf(), "c.pdf": _make_pdf(),
+        }))
+        with pytest.raises(ExtractionError, match="entries"):
+            await extract_text_from_zip(str(path))
+
+    async def test_uncompressed_size_over_limit_raises(self, tmp_path, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "ZIP_MAX_UNCOMPRESSED_TOTAL_MB", 0)
+        path = tmp_path / "big.zip"
+        path.write_bytes(_make_zip({"a.pdf": _make_pdf()}))
+        with pytest.raises(ExtractionError, match="uncompressed size"):
+            await extract_text_from_zip(str(path))
+
+    async def test_high_compression_ratio_raises(self, tmp_path, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "ZIP_MAX_COMPRESSION_RATIO", 5)
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("bomb.pdf", b"0" * 1_000_000)
+        path = tmp_path / "bomb.zip"
+        path.write_bytes(buf.getvalue())
+        with pytest.raises(ExtractionError, match="compression ratio"):
+            await extract_text_from_zip(str(path))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# validate_zip_safety
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestValidateZipSafety:
+    def _open(self, files: dict[str, bytes], *, compression=zipfile.ZIP_STORED) -> zipfile.ZipFile:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", compression=compression) as zf:
+            for name, data in files.items():
+                zf.writestr(name, data)
+        return zipfile.ZipFile(io.BytesIO(buf.getvalue()))
+
+    def test_within_limits_does_not_raise(self):
+        zf = self._open({"a.pdf": b"small content"})
+        validate_zip_safety(
+            zf, max_entries=10, max_uncompressed_total_bytes=1_000_000, max_compression_ratio=100
+        )
+
+    def test_too_many_entries(self):
+        zf = self._open({"a.pdf": b"x", "b.pdf": b"y", "c.pdf": b"z"})
+        with pytest.raises(ZipSafetyError, match="entries"):
+            validate_zip_safety(zf, max_entries=2)
+
+    def test_uncompressed_total_over_limit(self):
+        zf = self._open({"a.pdf": b"x" * 1000})
+        with pytest.raises(ZipSafetyError, match="uncompressed size"):
+            validate_zip_safety(zf, max_uncompressed_total_bytes=100)
+
+    def test_compression_ratio_over_limit(self):
+        zf = self._open({"bomb.pdf": b"0" * 1_000_000}, compression=zipfile.ZIP_DEFLATED)
+        with pytest.raises(ZipSafetyError, match="compression ratio"):
+            validate_zip_safety(
+                zf,
+                max_entries=100,
+                max_uncompressed_total_bytes=1_000_000_000,
+                max_compression_ratio=5,
+            )
+
+    def test_directory_entries_excluded_from_entry_count(self):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr(zipfile.ZipInfo("subdir/"), b"")
+            zf.writestr("subdir/a.pdf", b"content")
+        zf = zipfile.ZipFile(io.BytesIO(buf.getvalue()))
+        validate_zip_safety(zf, max_entries=1)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

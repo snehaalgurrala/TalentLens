@@ -102,12 +102,12 @@ class CandidateRankingEntry:
 class CandidateRankingService:
     def __init__(
         self,
-        campaign_repo: "CampaignRepository",
-        resume_file_repo: "ResumeFileRepository",
-        parsed_resume_repo: "ParsedResumeRepository",
-        candidate_repo: "CandidateRepository",
-        job_description_repo: "JobDescriptionRepository",
-        scoring_rule_service: "ScoringRuleService",
+        campaign_repo: CampaignRepository,
+        resume_file_repo: ResumeFileRepository,
+        parsed_resume_repo: ParsedResumeRepository,
+        candidate_repo: CandidateRepository,
+        job_description_repo: JobDescriptionRepository,
+        scoring_rule_service: ScoringRuleService,
         matching_service: MatchingService | None = None,
         thresholds: RankingThresholds | None = None,
     ) -> None:
@@ -122,7 +122,7 @@ class CandidateRankingService:
 
     # ── Internal guards ──────────────────────────────────────────────────────
 
-    def _require_org(self, user: "User") -> uuid.UUID:
+    def _require_org(self, user: User) -> uuid.UUID:
         if user.org_id is None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -139,7 +139,7 @@ class CandidateRankingService:
             )
         return campaign
 
-    async def _get_ready_job_description(self, campaign_id: uuid.UUID) -> "JobDescription":
+    async def _get_ready_job_description(self, campaign_id: uuid.UUID) -> JobDescription:
         """The most recently created job description for this campaign that
         has finished parsing and has a usable embedding. A campaign can have
         several job descriptions (revisions); we rank against the latest one
@@ -149,7 +149,7 @@ class CandidateRankingService:
             if (
                 jd.parsing_status == ParsingStatus.COMPLETED
                 and jd.embedding_status == EmbeddingStatus.READY
-                and jd.embedding
+                and jd.embedding is not None
             ):
                 return jd
         raise HTTPException(
@@ -163,7 +163,7 @@ class CandidateRankingService:
     # ── Public API ────────────────────────────────────────────────────────────
 
     async def rank_campaign(
-        self, campaign_id: uuid.UUID, user: "User"
+        self, campaign_id: uuid.UUID, user: User
     ) -> list[CandidateRankingEntry]:
         org_id = self._require_org(user)
         await self._require_campaign(campaign_id, org_id)
@@ -186,7 +186,7 @@ class CandidateRankingService:
         parsed_by_resume_file = {
             pr.resume_file_id: pr
             for pr in parsed_resumes
-            if pr.embedding_status == EmbeddingStatus.READY and pr.embedding
+            if pr.embedding_status == EmbeddingStatus.READY and pr.embedding is not None
         }
 
         candidate_ids = list(
@@ -233,11 +233,11 @@ class CandidateRankingService:
 
     def _build_entry(
         self,
-        candidate: "Candidate",
-        resume_file: "ResumeFile",
+        candidate: Candidate,
+        resume_file: ResumeFile,
         match_result: MatchResult,
-        breakdown: "ScoreBreakdown",
-        rule: "EffectiveScoringRuleResponse",
+        breakdown: ScoreBreakdown,
+        rule: EffectiveScoringRuleResponse,
     ) -> CandidateRankingEntry:
         candidate_name = f"{candidate.first_name} {candidate.last_name}".strip()
         recommendation = self._recommendation(breakdown.final_score)
@@ -288,7 +288,7 @@ class CandidateRankingService:
     def _match_explanation(
         self,
         candidate_name: str,
-        breakdown: "ScoreBreakdown",
+        breakdown: ScoreBreakdown,
         recommendation: str,
         match_result: MatchResult,
         source: str,

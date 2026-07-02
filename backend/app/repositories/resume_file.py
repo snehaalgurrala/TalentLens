@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -48,5 +48,5 @@ class ResumeFileRepository:
 
     async def soft_delete(self, resume_file: ResumeFile) -> None:
         resume_file.is_deleted = True
-        resume_file.deleted_at = datetime.now(timezone.utc)
+        resume_file.deleted_at = datetime.now(UTC)
         await self.session.flush()

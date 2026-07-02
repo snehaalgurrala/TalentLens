@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -50,5 +50,5 @@ class CampaignRepository:
 
     async def soft_delete(self, campaign: Campaign) -> None:
         campaign.is_deleted = True
-        campaign.deleted_at = datetime.now(timezone.utc)
+        campaign.deleted_at = datetime.now(UTC)
         await self.session.flush()

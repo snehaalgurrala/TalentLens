@@ -110,6 +110,7 @@ class TestRunParseJobDescriptionHappyPath:
                 str(jd.id),
                 _session_factory=session_factory,
                 _http_client=http_client,
+                _embedding_dispatcher=MagicMock(),
             )
 
         update_calls = repo.update.call_args_list
@@ -130,6 +131,25 @@ class TestRunParseJobDescriptionHappyPath:
 
         assert session.commit.await_count == 2
 
+    async def test_dispatches_embedding_generation_with_job_description_id(self):
+        jd = _make_jd()
+        repo = _make_repo(jd)
+        session_factory = _make_session_factory(AsyncMock())
+        http_client = _make_http_client(_make_ai_response())
+        embedding_dispatcher = MagicMock()
+
+        with patch(
+            "app.workers.job_description_parser.JobDescriptionRepository", return_value=repo
+        ):
+            await _run_parse_job_description(
+                str(jd.id),
+                _session_factory=session_factory,
+                _http_client=http_client,
+                _embedding_dispatcher=embedding_dispatcher,
+            )
+
+        embedding_dispatcher.assert_called_once_with(str(jd.id))
+
     async def test_calls_ai_service_with_raw_text(self):
         jd = _make_jd()
         repo = _make_repo(jd)
@@ -144,6 +164,7 @@ class TestRunParseJobDescriptionHappyPath:
                 str(jd.id),
                 _session_factory=session_factory,
                 _http_client=http_client,
+                _embedding_dispatcher=MagicMock(),
             )
 
         http_client.post.assert_awaited_once()

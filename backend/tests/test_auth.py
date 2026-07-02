@@ -9,7 +9,7 @@ Strategy:
     with a mock user fixture (expects 200).
 """
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -21,7 +21,6 @@ from app.api.v1.endpoints.auth import get_auth_service
 from app.main import app
 from app.models.user import User, UserRole
 from app.schemas.auth import TokenResponse
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -36,8 +35,8 @@ def make_user(**overrides) -> User:
         org_id=None,
         is_active=True,
         refresh_token_hash=None,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     for k, v in overrides.items():
         object.__setattr__(user, k, v)
@@ -76,6 +75,7 @@ class TestRegister:
         "email": "new@example.com",
         "password": "securepass1",
         "full_name": "New User",
+        "invitation_token": "some-invitation-token",
     }
 
     async def test_success_returns_201_with_tokens(
@@ -116,6 +116,46 @@ class TestRegister:
             self._url, json={**self._payload, "email": "not-an-email"}
         )
         assert res.status_code == 422
+
+    async def test_missing_invitation_token_returns_422(
+        self, client_no_lifespan: AsyncClient, mock_auth_service
+    ):
+        payload = {k: v for k, v in self._payload.items() if k != "invitation_token"}
+        res = await client_no_lifespan.post(self._url, json=payload)
+        assert res.status_code == 422
+
+    async def test_invalid_invitation_token_returns_400(
+        self, client_no_lifespan: AsyncClient, mock_auth_service
+    ):
+        mock_auth_service.register = AsyncMock(
+            side_effect=HTTPException(
+                400, "Invitation token is invalid, expired, or already used."
+            )
+        )
+        res = await client_no_lifespan.post(self._url, json=self._payload)
+        assert res.status_code == 400
+
+    async def test_role_and_org_id_are_not_accepted_from_client(
+        self, client_no_lifespan: AsyncClient, mock_auth_service
+    ):
+        """A client can no longer choose its own role or organization."""
+        user = make_user(email="new@example.com")
+        mock_auth_service.register = AsyncMock(return_value=(user, fake_tokens()))
+
+        res = await client_no_lifespan.post(
+            self._url,
+            json={
+                **self._payload,
+                "role": "SUPER_ADMIN",
+                "org_id": str(uuid.uuid4()),
+            },
+        )
+
+        assert res.status_code == 201
+        # Extra fields are ignored by the schema; the service never sees them.
+        called_data = mock_auth_service.register.call_args.args[0]
+        assert not hasattr(called_data, "role")
+        assert not hasattr(called_data, "org_id")
 
 
 # ── Login ─────────────────────────────────────────────────────────────────────

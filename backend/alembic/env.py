@@ -5,14 +5,14 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+import app.models  # noqa: F401 — ensures all model modules register on Base
 from alembic import context
+from app.core.config import settings
 
 # Import Base so all model metadata is available to Alembic.
 # As models are added, import them in app/models/__init__.py and they
 # will be auto-discovered here via the Base metadata.
 from app.db.base import Base  # noqa: F401
-import app.models  # noqa: F401 — ensures all model modules register on Base
-from app.core.config import settings
 
 config = context.config
 

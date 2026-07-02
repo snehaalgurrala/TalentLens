@@ -7,7 +7,7 @@ Resume/JD/Candidate rows are built with the real SQLAlchemy model classes
 the service under test behaves exactly as it would against real ORM rows.
 """
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -99,8 +99,8 @@ def make_user(role: UserRole = UserRole.RECRUITER, org_id=_ORG_ID) -> User:
         org_id=org_id,
         is_active=True,
         refresh_token_hash=None,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
 
 
@@ -114,8 +114,8 @@ def make_campaign(**overrides) -> Campaign:
         status=CampaignStatus.ACTIVE,
         is_deleted=False,
         deleted_at=None,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     for k, v in overrides.items():
         object.__setattr__(campaign, k, v)
@@ -131,18 +131,18 @@ def make_job_description(**overrides) -> JobDescription:
         raw_text="We need a backend engineer.",
         structured_json=_JD_JSON,
         parser_version="v1",
-        parsed_at=datetime.now(timezone.utc),
+        parsed_at=datetime.now(UTC),
         parsing_status=ParsingStatus.COMPLETED,
         parsing_error=None,
         embedding_status=EmbeddingStatus.READY,
         embedding_model="local",
-        embedding_generated_at=datetime.now(timezone.utc),
+        embedding_generated_at=datetime.now(UTC),
         embedding=[1.0, 0.0],
         embedding_dimension=2,
         is_deleted=False,
         deleted_at=None,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     for k, v in overrides.items():
         object.__setattr__(jd, k, v)
@@ -162,7 +162,7 @@ def make_resume_file(candidate_id=None, **overrides) -> ResumeFile:
         uploaded_by=None,
         is_deleted=False,
         deleted_at=None,
-        uploaded_at=datetime.now(timezone.utc),
+        uploaded_at=datetime.now(UTC),
         candidate_id=candidate_id or uuid.uuid4(),
         error_message=None,
     )
@@ -179,10 +179,10 @@ def make_parsed_resume(resume_file_id, structured_json=None, embedding=None, **o
         raw_text="resume text",
         structured_json=structured_json or _RESUME_JSON,
         parser_version="v1",
-        parsed_at=datetime.now(timezone.utc),
+        parsed_at=datetime.now(UTC),
         embedding_status=EmbeddingStatus.READY,
         embedding_model="local",
-        embedding_generated_at=datetime.now(timezone.utc),
+        embedding_generated_at=datetime.now(UTC),
         embedding=embedding if embedding is not None else [1.0, 0.0],
         embedding_dimension=2,
     )
@@ -205,8 +205,8 @@ def make_candidate(**overrides) -> Candidate:
         years_of_experience=5.0,
         current_company="Acme Corp",
         current_role="Engineer",
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     for k, v in overrides.items():
         object.__setattr__(candidate, k, v)

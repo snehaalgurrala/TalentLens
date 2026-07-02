@@ -9,7 +9,11 @@ celery_app = Celery(
     "talentlens",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["app.workers.resume_parser", "app.workers.job_description_parser"],
+    include=[
+        "app.workers.resume_parser",
+        "app.workers.job_description_parser",
+        "app.workers.embedding_worker",
+    ],
 )
 
 celery_app.conf.update(

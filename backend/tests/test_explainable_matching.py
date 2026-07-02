@@ -12,12 +12,10 @@ Two layers:
 """
 from types import SimpleNamespace
 
-import pytest
-
 from app.services.explainable_matching import (
     DEFAULT_THRESHOLDS,
-    ExplanationThresholds,
     ExplainableMatchingService,
+    ExplanationThresholds,
 )
 from app.services.matching_service import MatchingService, MatchResult, ScoreExplanation
 

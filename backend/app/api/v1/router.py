@@ -4,6 +4,7 @@ from app.api.v1.endpoints import (
     auth,
     campaigns,
     job_descriptions,
+    organizations,
     rankings,
     resumes,
     scoring_rules,
@@ -13,6 +14,7 @@ from app.api.v1.endpoints import (
 router = APIRouter()
 
 router.include_router(auth.router, prefix="/auth", tags=["auth"])
+router.include_router(organizations.router, prefix="/organizations", tags=["organizations"])
 router.include_router(users.router, prefix="/users", tags=["users"])
 router.include_router(campaigns.router, prefix="/campaigns", tags=["campaigns"])
 router.include_router(resumes.router, tags=["resumes"])

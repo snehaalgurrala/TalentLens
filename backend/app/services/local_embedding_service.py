@@ -27,7 +27,7 @@ import threading
 import time
 import unicodedata
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from app.core.config import settings
@@ -292,7 +292,7 @@ class LocalEmbeddingService:
                 await self.parsed_resume_repo.update(r, embedding_status=EmbeddingStatus.FAILED)
             raise
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         updated = []
         for resume, vector in zip(resumes, vectors):
             updated.append(
@@ -339,7 +339,7 @@ class LocalEmbeddingService:
             embedding=vector,
             embedding_model=self.model_name,
             embedding_dimension=len(vector),
-            embedding_generated_at=datetime.now(timezone.utc),
+            embedding_generated_at=datetime.now(UTC),
             embedding_status=EmbeddingStatus.READY,
         )
         logger.info(

@@ -19,6 +19,61 @@ class ExtractionError(Exception):
     """Raised when a file cannot be read or its text cannot be extracted."""
 
 
+class ZipSafetyError(ExtractionError):
+    """A ZIP archive failed a pre-extraction safety check (likely a zip bomb)."""
+
+
+def validate_zip_safety(
+    zf: zipfile.ZipFile,
+    *,
+    max_entries: int | None = None,
+    max_uncompressed_total_bytes: int | None = None,
+    max_compression_ratio: int | None = None,
+) -> None:
+    """
+    Reject unsafe ZIP archives using only the central-directory metadata
+    already present in `zf.infolist()` — no entry is read or decompressed
+    here. That's the actual defense: a zip bomb is dangerous once
+    decompressed, not while its (already size-capped) compressed bytes sit
+    on disk, so every check below must run before any entry is extracted.
+    """
+    from app.core.config import settings
+
+    max_entries = max_entries if max_entries is not None else settings.ZIP_MAX_ENTRIES
+    max_total = (
+        max_uncompressed_total_bytes
+        if max_uncompressed_total_bytes is not None
+        else settings.ZIP_MAX_UNCOMPRESSED_TOTAL_MB * 1024 * 1024
+    )
+    max_ratio = (
+        max_compression_ratio
+        if max_compression_ratio is not None
+        else settings.ZIP_MAX_COMPRESSION_RATIO
+    )
+
+    entries = [entry for entry in zf.infolist() if not entry.is_dir()]
+    if len(entries) > max_entries:
+        raise ZipSafetyError(
+            f"ZIP contains {len(entries)} entries, which exceeds the {max_entries} limit."
+        )
+
+    total_uncompressed = sum(entry.file_size for entry in entries)
+    if total_uncompressed > max_total:
+        raise ZipSafetyError(
+            f"ZIP's uncompressed size ({total_uncompressed / (1024 * 1024):.1f} MB) "
+            f"exceeds the {max_total / (1024 * 1024):.0f} MB limit."
+        )
+
+    for entry in entries:
+        if entry.compress_size > 0:
+            ratio = entry.file_size / entry.compress_size
+            if ratio > max_ratio:
+                raise ZipSafetyError(
+                    f"Entry '{entry.filename}' has a compression ratio of {ratio:.0f}:1, "
+                    f"which exceeds the {max_ratio}:1 limit (likely a zip bomb)."
+                )
+
+
 def detect_file_type(filename: str) -> str:
     """Return 'pdf', 'docx', or 'zip'. Raises ValueError for anything else."""
     ext = Path(filename).suffix.lower()
@@ -80,6 +135,8 @@ def _read_and_extract_zip(file_path: str) -> list[tuple[str, str]]:
 
     results: list[tuple[str, str]] = []
     with zf:
+        validate_zip_safety(zf)
+
         for entry in zf.infolist():
             if entry.is_dir():
                 continue

@@ -11,7 +11,7 @@ Async tests run automatically because asyncio_mode = "auto" in pyproject.toml.
 
 import uuid
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -26,7 +26,6 @@ from app.workers.resume_parser import (
     _parse_resume_task,
     _run_parse_resume,
 )
-
 
 # ── Shared fixture helpers ────────────────────────────────────────────────────
 
@@ -217,6 +216,7 @@ class TestRunParseResumeHappyPath:
                 str(rf.id),
                 _session_factory=session_factory,
                 _http_client=http_client,
+                _embedding_dispatcher=MagicMock(),
             )
 
         # Candidate created (no existing match)
@@ -244,6 +244,36 @@ class TestRunParseResumeHappyPath:
         # Session committed twice (once per phase)
         assert session.commit.await_count == 2
 
+    async def test_dispatches_embedding_generation_with_parsed_resume_id(self):
+        rf = _make_rf()
+        candidate = _make_candidate()
+        parsed_resume = SimpleNamespace(id=uuid.uuid4())
+        rf_repo, candidate_repo, parsed_repo = _make_repos(rf, candidate)
+        parsed_repo.create.return_value = parsed_resume
+
+        session_factory = _make_session_factory(AsyncMock())
+        http_client = _make_http_client(_make_ai_response())
+        embedding_dispatcher = MagicMock()
+
+        with (
+            patch("app.workers.resume_parser.ResumeFileRepository", return_value=rf_repo),
+            patch("app.workers.resume_parser.CandidateRepository", return_value=candidate_repo),
+            patch("app.workers.resume_parser.ParsedResumeRepository", return_value=parsed_repo),
+            patch(
+                "app.workers.resume_parser._get_campaign_org_id",
+                AsyncMock(return_value=uuid.uuid4()),
+            ),
+            patch("app.workers.resume_parser._extract_text", AsyncMock(return_value="text")),
+        ):
+            await _run_parse_resume(
+                str(rf.id),
+                _session_factory=session_factory,
+                _http_client=http_client,
+                _embedding_dispatcher=embedding_dispatcher,
+            )
+
+        embedding_dispatcher.assert_called_once_with(str(parsed_resume.id))
+
     async def test_existing_candidate_matched_by_email_is_updated(self):
         rf = _make_rf()
         existing_candidate = _make_candidate()
@@ -270,6 +300,7 @@ class TestRunParseResumeHappyPath:
                 str(rf.id),
                 _session_factory=session_factory,
                 _http_client=http_client,
+                _embedding_dispatcher=MagicMock(),
             )
 
         # create should NOT be called; update should be
@@ -303,6 +334,7 @@ class TestRunParseResumeHappyPath:
                 str(rf.id),
                 _session_factory=session_factory,
                 _http_client=http_client,
+                _embedding_dispatcher=MagicMock(),
             )
 
         # ParsedResume updated in place, not recreated
@@ -343,6 +375,7 @@ class TestRunParseResumeHappyPath:
                 str(rf.id),
                 _session_factory=session_factory,
                 _http_client=http_client,
+                _embedding_dispatcher=MagicMock(),
             )
 
         mock_docx.assert_awaited_once()
@@ -486,15 +519,6 @@ class TestCeleryTaskErrorClassification:
         from app.services.resume_extraction import ExtractionError
 
         mock_self = self._make_self()
-        with (
-            patch(
-                "app.workers.resume_parser._run_parse_resume",
-                AsyncMock(side_effect=ExtractionError("corrupted")),
-            ),
-            patch("app.workers.resume_parser._mark_failed", AsyncMock()),
-            patch("asyncio.run", lambda coro: coro.send(None) or _run_coro(coro)),
-        ):
-            pass  # asyncio.run patching is complex; test via raised exception below
 
         # Test the classification logic directly with asyncio.run mocked
         run_calls = []

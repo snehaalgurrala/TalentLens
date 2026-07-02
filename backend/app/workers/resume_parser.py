@@ -7,6 +7,7 @@ Full parsing workflow for a single ResumeFile:
   Phase 2 — Extract raw text from the stored file (no DB).
   Phase 3 — POST text to AI service, receive structured JSON (no DB).
   Phase 4 — Upsert Candidate + ParsedResume, mark PARSED (own DB transaction).
+  Phase 5 — Dispatch generate_resume_embedding (separate task, own retries).
 
 Retry policy  : up to 3 retries with exponential back-off (30 s, 60 s, 120 s).
 Permanent errors : ExtractionError and 4xx AI responses — no retry, status → FAILED.
@@ -39,6 +40,7 @@ from app.services.resume_extraction import (
     extract_text_from_zip,
 )
 from app.workers.celery_app import celery_app
+from app.workers.embedding_worker import generate_resume_embedding
 
 logger = logging.getLogger(__name__)
 
@@ -117,14 +119,20 @@ def _candidate_kwargs(ai_data: dict) -> dict:
 # ── Core async implementation ─────────────────────────────────────────────────
 
 
+def _enqueue_resume_embedding(parsed_resume_id: str) -> None:
+    generate_resume_embedding.delay(parsed_resume_id)
+
+
 async def _run_parse_resume(
     resume_file_id_str: str,
     *,
     _session_factory: Any = None,
     _http_client: httpx.AsyncClient | None = None,
+    _embedding_dispatcher: Any = None,
 ) -> None:
     """Full parse workflow. Accepts optional overrides for testability."""
     factory = _session_factory or AsyncSessionLocal
+    dispatch_embedding = _embedding_dispatcher or _enqueue_resume_embedding
     rf_id = uuid.UUID(resume_file_id_str)
     log_ctx = {"resume_file_id": resume_file_id_str}
 
@@ -210,7 +218,7 @@ async def _run_parse_resume(
         # Upsert ParsedResume — safe to re-run on retry
         existing_pr = await parsed_repo.find_by_resume_file(rf_id)
         if existing_pr is None:
-            await parsed_repo.create(
+            parsed_resume = await parsed_repo.create(
                 resume_file_id=rf_id,
                 candidate_id=candidate.id,
                 raw_text=raw_text,
@@ -219,7 +227,7 @@ async def _run_parse_resume(
             )
             logger.info("Created ParsedResume record", extra=log_ctx)
         else:
-            await parsed_repo.update(
+            parsed_resume = await parsed_repo.update(
                 existing_pr,
                 candidate_id=candidate.id,
                 raw_text=raw_text,
@@ -238,6 +246,11 @@ async def _run_parse_resume(
         )
         await session.commit()
         logger.info("ResumeFile marked PARSED", extra=log_ctx)
+        parsed_resume_id = parsed_resume.id
+
+    # ── Phase 5: Dispatch embedding generation ───────────────────────────────
+    dispatch_embedding(str(parsed_resume_id))
+    logger.info("Dispatched embedding generation", extra={**log_ctx, "parsed_resume_id": str(parsed_resume_id)})
 
 
 async def _mark_failed(

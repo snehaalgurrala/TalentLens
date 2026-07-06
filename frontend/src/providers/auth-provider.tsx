@@ -57,6 +57,11 @@ function AuthBootstrap({ children }: { children: React.ReactNode }) {
     async function bootstrap() {
       const refreshToken = getRefreshToken()
       if (!refreshToken) {
+        // The tl_session marker cookie can outlive the actual refresh token
+        // (e.g. "remember me" was off and the browser restarted). Clear it
+        // here too, or the edge middleware keeps treating this as a logged-in
+        // session and bounces /login -> /dashboard -> /login forever.
+        clearSession()
         setStatus("unauthenticated")
         return
       }

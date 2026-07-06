@@ -115,8 +115,8 @@ function ResumeTab({ profile }: ResumeTabProps) {
             <p className="mb-1.5 text-caption font-medium text-muted-foreground">Skills</p>
             <div className="flex flex-wrap gap-1.5">
               {structured.skills.length > 0 ? (
-                structured.skills.map((skill) => (
-                  <Badge key={skill} variant="outline">
+                Array.from(new Set(structured.skills)).map((skill, index) => (
+                  <Badge key={`${skill}-${index}`} variant="outline">
                     {skill}
                   </Badge>
                 ))

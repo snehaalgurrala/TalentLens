@@ -2,10 +2,12 @@
 
 import * as React from "react"
 import {
+  Archive,
   CheckCircle2,
   Download,
   MoreHorizontal,
   NotebookPen,
+  RotateCcw,
   Send,
   Trash2,
   UserPlus,
@@ -42,10 +44,12 @@ import {
 } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
+  useArchiveCandidate,
   useAssignRecruiter,
   useDeleteCandidate,
   useOrgMembers,
   useRejectCandidate,
+  useRestoreCandidate,
   useShortlistCandidate,
   useUpdatePipelineStage,
 } from "@/hooks"
@@ -53,7 +57,7 @@ import { candidateService } from "@/services/candidate.service"
 import { downloadBlob } from "@/utils"
 import type { CandidateListItem, PipelineStage } from "@/types"
 
-import { PIPELINE_STAGE_OPTIONS } from "./constants"
+import { PIPELINE_STAGE_OPTIONS, TERMINAL_STAGES } from "./constants"
 
 export interface CandidateActionsMenuProps {
   candidate: CandidateListItem
@@ -72,6 +76,9 @@ function CandidateActionsMenu({ candidate, onEditNotes }: CandidateActionsMenuPr
   const assignRecruiter = useAssignRecruiter()
   const updatePipelineStage = useUpdatePipelineStage()
   const deleteCandidate = useDeleteCandidate()
+  const archiveCandidate = useArchiveCandidate()
+  const restoreCandidate = useRestoreCandidate()
+  const isTerminal = TERMINAL_STAGES.has(candidate.pipeline_stage)
 
   function handleShortlist() {
     shortlist.mutate(candidate.resume_file_id, {
@@ -108,6 +115,20 @@ function CandidateActionsMenu({ candidate, onEditNotes }: CandidateActionsMenuPr
         onError: (error) => toast.error(error.message || "Failed to update pipeline stage"),
       }
     )
+  }
+
+  function handleArchive() {
+    archiveCandidate.mutate(candidate.resume_file_id, {
+      onSuccess: () => toast.success(`${candidate.candidate_name} archived`),
+      onError: (error) => toast.error(error.message || "Failed to archive candidate"),
+    })
+  }
+
+  function handleRestore() {
+    restoreCandidate.mutate(candidate.resume_file_id, {
+      onSuccess: () => toast.success(`${candidate.candidate_name} restored`),
+      onError: (error) => toast.error(error.message || "Failed to restore candidate"),
+    })
   }
 
   function handleDelete() {
@@ -154,8 +175,19 @@ function CandidateActionsMenu({ candidate, onEditNotes }: CandidateActionsMenuPr
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setAssignOpen(true)}>
             <UserPlus aria-hidden="true" />
-            Assign Recruiter
+            {candidate.assigned_recruiter ? "Transfer Ownership" : "Assign Recruiter"}
           </DropdownMenuItem>
+          {isTerminal ? (
+            <DropdownMenuItem onSelect={handleRestore} disabled={restoreCandidate.isPending}>
+              <RotateCcw aria-hidden="true" />
+              Restore
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onSelect={handleArchive} disabled={archiveCandidate.isPending}>
+              <Archive aria-hidden="true" />
+              Archive
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <Workflow aria-hidden="true" />

@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Literal
 
 from fastapi import HTTPException, status
 
+from app.models.candidate_activity import ActivityEventType
 from app.models.resume_file import PipelineStage, ReviewStatus, is_earlier_pipeline_stage
 from app.schemas.candidate_management import (
     BulkActionFailure,
@@ -43,6 +44,7 @@ if TYPE_CHECKING:
     from app.repositories.campaign import CampaignRepository
     from app.repositories.candidate import CandidateRepository
     from app.repositories.parsed_resume import ParsedResumeRepository
+    from app.repositories.candidate_activity import CandidateActivityRepository
     from app.repositories.resume_file import ResumeFileRepository
     from app.repositories.user import UserRepository
     from app.services.candidate_ranking import CandidateRankingEntry, CandidateRankingService
@@ -68,6 +70,7 @@ class CandidateManagementService:
         campaign_repo: CampaignRepository,
         user_repo: UserRepository,
         ranking_service: CandidateRankingService,
+        activity_repo: CandidateActivityRepository | None = None,
     ) -> None:
         self.resume_file_repo = resume_file_repo
         self.candidate_repo = candidate_repo
@@ -75,6 +78,7 @@ class CandidateManagementService:
         self.campaign_repo = campaign_repo
         self.user_repo = user_repo
         self.ranking_service = ranking_service
+        self.activity_repo = activity_repo
 
     # ── Internal guards ──────────────────────────────────────────────────────
 
@@ -284,12 +288,22 @@ class CandidateManagementService:
         self, resume_file_id: uuid.UUID, pipeline_stage: PipelineStage, user: User
     ) -> ResumeFile:
         rf = await self._require_resume_file(resume_file_id, user)
-        return await self.resume_file_repo.update(rf, pipeline_stage=pipeline_stage)
+        from_stage = rf.pipeline_stage
+        updated = await self.resume_file_repo.update(rf, pipeline_stage=pipeline_stage)
+        if self.activity_repo is not None:
+            await self.activity_repo.create(
+                rf.id,
+                user.id,
+                ActivityEventType.PIPELINE_STAGE_CHANGED,
+                {"from_stage": from_stage.value, "to_stage": pipeline_stage.value},
+            )
+        return updated
 
     async def assign_recruiter(
         self, resume_file_id: uuid.UUID, assigned_recruiter_id: uuid.UUID | None, user: User
     ) -> ResumeFile:
         rf = await self._require_resume_file(resume_file_id, user)
+        previous_recruiter_id = rf.assigned_recruiter_id
         if assigned_recruiter_id is not None:
             recruiter = await self.user_repo.get_by_id(assigned_recruiter_id)
             if recruiter is None or recruiter.org_id != user.org_id:
@@ -297,9 +311,80 @@ class CandidateManagementService:
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail="Recruiter not found in your organization.",
                 )
-        return await self.resume_file_repo.update(
+        updated = await self.resume_file_repo.update(
             rf, assigned_recruiter_id=assigned_recruiter_id
         )
+        if self.activity_repo is not None and assigned_recruiter_id is not None:
+            metadata: dict = {"assigned_recruiter_id": str(assigned_recruiter_id)}
+            if previous_recruiter_id is not None and previous_recruiter_id != assigned_recruiter_id:
+                metadata["from_recruiter_id"] = str(previous_recruiter_id)
+            await self.activity_repo.create(
+                rf.id, user.id, ActivityEventType.RECRUITER_ASSIGNED, metadata
+            )
+        return updated
+
+    async def archive(self, resume_file_id: uuid.UUID, user: User) -> ResumeFile:
+        rf = await self._require_resume_file(resume_file_id, user)
+        from_stage = rf.pipeline_stage
+        updated = await self.resume_file_repo.update(rf, pipeline_stage=PipelineStage.ARCHIVED)
+        if self.activity_repo is not None:
+            await self.activity_repo.create(
+                rf.id,
+                user.id,
+                ActivityEventType.ARCHIVED,
+                {"from_stage": from_stage.value, "to_stage": PipelineStage.ARCHIVED.value},
+            )
+        return updated
+
+    async def restore(self, resume_file_id: uuid.UUID, user: User) -> ResumeFile:
+        """Reverse a terminal stage (REJECTED/WITHDRAWN/ARCHIVED) back to the
+        stage the candidate was in immediately before that terminal move, by
+        walking the activity log for the most recent transition into the
+        current stage. Falls back to APPLIED if no such history exists."""
+        rf = await self._require_resume_file(resume_file_id, user)
+        current_stage = rf.pipeline_stage
+        if current_stage not in (
+            PipelineStage.REJECTED,
+            PipelineStage.WITHDRAWN,
+            PipelineStage.ARCHIVED,
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Candidate is not in a terminal stage.",
+            )
+        target_stage = await self._resolve_restore_target(rf.id, current_stage)
+        update_fields: dict = {"pipeline_stage": target_stage}
+        if rf.review_status == ReviewStatus.REJECTED:
+            update_fields["review_status"] = ReviewStatus.PENDING
+        updated = await self.resume_file_repo.update(rf, **update_fields)
+        if self.activity_repo is not None:
+            await self.activity_repo.create(
+                rf.id,
+                user.id,
+                ActivityEventType.RESTORED,
+                {"from_stage": current_stage.value, "to_stage": target_stage.value},
+            )
+        return updated
+
+    async def _resolve_restore_target(
+        self, resume_file_id: uuid.UUID, current_stage: PipelineStage
+    ) -> PipelineStage:
+        if self.activity_repo is None:
+            return PipelineStage.APPLIED
+        history = await self.activity_repo.list_by_resume_file(resume_file_id)
+        for event in history:
+            meta = event.event_metadata or {}
+            if (
+                event.event_type
+                in (ActivityEventType.PIPELINE_STAGE_CHANGED, ActivityEventType.ARCHIVED)
+                and meta.get("to_stage") == current_stage.value
+                and meta.get("from_stage")
+            ):
+                try:
+                    return PipelineStage(meta["from_stage"])
+                except ValueError:
+                    break
+        return PipelineStage.APPLIED
 
     async def update_notes(self, resume_file_id: uuid.UUID, notes: str | None, user: User) -> ResumeFile:
         rf = await self._require_resume_file(resume_file_id, user)
@@ -323,9 +408,17 @@ class CandidateManagementService:
         stage_update = {}
         if is_earlier_pipeline_stage(rf.pipeline_stage, target_stage):
             stage_update["pipeline_stage"] = target_stage
-        return await self.resume_file_repo.update(
+        updated = await self.resume_file_repo.update(
             rf, review_status=review_status_value, **stage_update
         )
+        if self.activity_repo is not None:
+            event_type = (
+                ActivityEventType.SHORTLISTED
+                if review_status_value == ReviewStatus.SHORTLISTED
+                else ActivityEventType.REJECTED
+            )
+            await self.activity_repo.create(rf.id, user.id, event_type)
+        return updated
 
     async def delete(self, resume_file_id: uuid.UUID, user: User) -> None:
         rf = await self._require_resume_file(resume_file_id, user)
@@ -363,3 +456,18 @@ class CandidateManagementService:
 
     async def bulk_delete(self, resume_file_ids: list[uuid.UUID], user: User) -> BulkActionResult:
         return await self._bulk_apply(resume_file_ids, user, lambda rid: self.delete(rid, user))
+
+    async def bulk_archive(self, resume_file_ids: list[uuid.UUID], user: User) -> BulkActionResult:
+        return await self._bulk_apply(resume_file_ids, user, lambda rid: self.archive(rid, user))
+
+    async def bulk_restore(self, resume_file_ids: list[uuid.UUID], user: User) -> BulkActionResult:
+        return await self._bulk_apply(resume_file_ids, user, lambda rid: self.restore(rid, user))
+
+    async def bulk_update_pipeline_stage(
+        self, resume_file_ids: list[uuid.UUID], pipeline_stage: PipelineStage, user: User
+    ) -> BulkActionResult:
+        return await self._bulk_apply(
+            resume_file_ids,
+            user,
+            lambda rid: self.update_pipeline_stage(rid, pipeline_stage, user),
+        )

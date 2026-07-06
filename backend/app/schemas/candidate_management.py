@@ -73,6 +73,10 @@ class BulkAssignRecruiterRequest(BulkActionRequest):
     assigned_recruiter_id: UUID | None = None
 
 
+class BulkPipelineStageRequest(BulkActionRequest):
+    pipeline_stage: PipelineStage
+
+
 class BulkActionFailure(BaseModel):
     id: UUID
     reason: str

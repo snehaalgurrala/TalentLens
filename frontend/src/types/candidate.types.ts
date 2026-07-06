@@ -44,6 +44,12 @@ export type PipelineStage =
   | "INTERVIEW_SCHEDULED"
   | "REJECTED"
   | "HIRED"
+  | "ASSESSMENT_COMPLETED"
+  | "INTERVIEW_COMPLETED"
+  | "OFFER_EXTENDED"
+  | "OFFER_ACCEPTED"
+  | "WITHDRAWN"
+  | "ARCHIVED"
 
 export interface ResumeFile {
   id: string

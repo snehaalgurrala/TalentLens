@@ -2,10 +2,11 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.resume_file import ResumeFile
+from app.models.campaign import Campaign
+from app.models.resume_file import PipelineStage, ResumeFile
 
 
 class ResumeFileRepository:
@@ -43,6 +44,21 @@ class ResumeFileRepository:
         )
         return list(result.scalars().all())
 
+    async def get_latest_by_candidate_id(self, candidate_id: uuid.UUID) -> ResumeFile | None:
+        """Most recently uploaded resume file linked to this candidate — used
+        to resolve a bare Candidate.id (as seen on the candidate list/profile
+        routes) down to the resume_file_id every mutation endpoint keys on."""
+        result = await self.session.execute(
+            select(ResumeFile)
+            .where(
+                ResumeFile.candidate_id == candidate_id,
+                ResumeFile.is_deleted.is_(False),
+            )
+            .order_by(ResumeFile.uploaded_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def create(self, **kwargs: Any) -> ResumeFile:
         rf = ResumeFile(**kwargs)
         self.session.add(rf)
@@ -61,3 +77,22 @@ class ResumeFileRepository:
         resume_file.is_deleted = True
         resume_file.deleted_at = datetime.now(UTC)
         await self.session.flush()
+
+    async def workload_by_org(
+        self, org_id: uuid.UUID
+    ) -> list[tuple[uuid.UUID, PipelineStage, int]]:
+        """(assigned_recruiter_id, pipeline_stage, count) rows for every
+        assigned, non-deleted resume file across every campaign in org_id —
+        a real GROUP BY aggregate, unlike the in-memory scan pattern used by
+        CandidateManagementService.list_campaign_candidates."""
+        result = await self.session.execute(
+            select(ResumeFile.assigned_recruiter_id, ResumeFile.pipeline_stage, func.count())
+            .join(Campaign, Campaign.id == ResumeFile.campaign_id)
+            .where(
+                Campaign.org_id == org_id,
+                ResumeFile.is_deleted.is_(False),
+                ResumeFile.assigned_recruiter_id.is_not(None),
+            )
+            .group_by(ResumeFile.assigned_recruiter_id, ResumeFile.pipeline_stage)
+        )
+        return [(row[0], row[1], row[2]) for row in result.all()]

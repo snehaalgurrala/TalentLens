@@ -9,6 +9,7 @@ from fastapi.responses import Response
 from app.api.deps import CurrentUser, DBSession, RequireRoles
 from app.models.user import User, UserRole
 from app.repositories.campaign import CampaignRepository
+from app.repositories.candidate_activity import CandidateActivityRepository
 from app.repositories.resume_file import ResumeFileRepository
 from app.schemas.resume_file import ResumeFileResponse, UploadResponse
 from app.services.resume_file import ResumeFileService
@@ -29,6 +30,7 @@ def get_resume_service(db: DBSession, storage: StorageDep) -> ResumeFileService:
         ResumeFileRepository(db),
         CampaignRepository(db),
         storage,
+        CandidateActivityRepository(db),
     )
 
 

@@ -10,6 +10,7 @@ from app.models.user import User, UserRole
 from app.models.resume_file import PipelineStage, ReviewStatus
 from app.repositories.campaign import CampaignRepository
 from app.repositories.candidate import CandidateRepository
+from app.repositories.candidate_activity import CandidateActivityRepository
 from app.repositories.job_description import JobDescriptionRepository
 from app.repositories.parsed_resume import ParsedResumeRepository
 from app.repositories.resume_file import ResumeFileRepository
@@ -74,6 +75,7 @@ def get_candidate_management_service(db: DBSession) -> CandidateManagementServic
         campaign_repo=CampaignRepository(db),
         user_repo=UserRepository(db),
         ranking_service=ranking_service,
+        activity_repo=CandidateActivityRepository(db),
     )
 
 
@@ -253,7 +255,7 @@ async def list_campaign_candidates(
     ),
     sort_dir: Literal["asc", "desc"] = Query("desc"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=1000, description="Raised to 1000 so the pipeline board can fetch a whole campaign in one call"),
 ) -> CandidateListResponse:
     return await service.list_campaign_candidates(
         campaign_id,

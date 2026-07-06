@@ -32,3 +32,5 @@ class CandidateRankingResponse(BaseModel):
     current_company: str | None
     years_of_experience: float | None
     review_status: ReviewStatus
+    bonus_points: float = 0.0
+    preferred_company_matched: bool = False

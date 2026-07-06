@@ -15,6 +15,12 @@ export const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
   INTERVIEW_SCHEDULED: "Interview Scheduled",
   REJECTED: "Rejected",
   HIRED: "Hired",
+  ASSESSMENT_COMPLETED: "Assessment Completed",
+  INTERVIEW_COMPLETED: "Interview Completed",
+  OFFER_EXTENDED: "Offer Extended",
+  OFFER_ACCEPTED: "Offer Accepted",
+  WITHDRAWN: "Withdrawn",
+  ARCHIVED: "Archived",
 }
 
 export const PIPELINE_STAGE_OPTIONS: { value: PipelineStage; label: string }[] = (
@@ -31,6 +37,12 @@ export const PIPELINE_STAGE_VARIANT: Record<PipelineStage, BadgeVariant> = {
   INTERVIEW_SCHEDULED: "active",
   REJECTED: "rejected",
   HIRED: "success",
+  ASSESSMENT_COMPLETED: "warning",
+  INTERVIEW_COMPLETED: "active",
+  OFFER_EXTENDED: "success",
+  OFFER_ACCEPTED: "success",
+  WITHDRAWN: "secondary",
+  ARCHIVED: "secondary",
 }
 
 export const RECOMMENDATION_VARIANT: Record<RankingRecommendation, BadgeVariant> = {
@@ -51,3 +63,11 @@ export const REVIEW_STATUS_OPTIONS: { value: ReviewStatus; label: string }[] = [
   { value: "SHORTLISTED", label: "Shortlisted" },
   { value: "REJECTED", label: "Rejected" },
 ]
+
+/** Terminal pipeline stages — a candidate here has left the active pipeline
+ * and can only move forward again via Restore. */
+export const TERMINAL_STAGES: ReadonlySet<PipelineStage> = new Set([
+  "REJECTED",
+  "WITHDRAWN",
+  "ARCHIVED",
+])

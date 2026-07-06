@@ -6,9 +6,11 @@ from pathlib import Path
 from fastapi import HTTPException, UploadFile, status
 
 from app.core.config import settings
+from app.models.candidate_activity import ActivityEventType
 from app.models.resume_file import ResumeFile, UploadStatus
 from app.models.user import User, UserRole
 from app.repositories.campaign import CampaignRepository
+from app.repositories.candidate_activity import CandidateActivityRepository
 from app.repositories.resume_file import ResumeFileRepository
 from app.services.resume_extraction import ZipSafetyError, validate_zip_safety
 from app.storage.base import StorageBackend
@@ -30,10 +32,12 @@ class ResumeFileService:
         repo: ResumeFileRepository,
         campaign_repo: CampaignRepository,
         storage: StorageBackend,
+        activity_repo: CandidateActivityRepository | None = None,
     ) -> None:
         self.repo = repo
         self.campaign_repo = campaign_repo
         self.storage = storage
+        self.activity_repo = activity_repo
 
     # ── Internal guards ───────────────────────────────────────────────────────
 
@@ -170,6 +174,8 @@ class ResumeFileService:
                 upload_status=UploadStatus.UPLOADED,
                 uploaded_by=user.id,
             )
+            if self.activity_repo is not None:
+                await self.activity_repo.create(rf.id, user.id, ActivityEventType.RESUME_UPLOADED)
             created.append(rf)
 
         return created

@@ -29,8 +29,10 @@ from celery import Task
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.models.campaign import Campaign
+from app.models.candidate_activity import ActivityEventType
 from app.models.resume_file import PipelineStage, UploadStatus, is_earlier_pipeline_stage
 from app.repositories.candidate import CandidateRepository
+from app.repositories.candidate_activity import CandidateActivityRepository
 from app.repositories.parsed_resume import ParsedResumeRepository
 from app.repositories.resume_file import ResumeFileRepository
 from app.services.resume_extraction import (
@@ -159,6 +161,9 @@ async def _run_parse_resume(
         await rf_repo.update(
             rf, upload_status=UploadStatus.PROCESSING, error_message=None, **stage_update
         )
+        await CandidateActivityRepository(session).create(
+            rf.id, None, ActivityEventType.PARSING_STARTED
+        )
         await session.commit()
 
         # Capture scalars before the session closes (expire_on_commit=False preserves them)
@@ -253,6 +258,7 @@ async def _run_parse_resume(
             error_message=None,
             **stage_update,
         )
+        await CandidateActivityRepository(session).create(rf_id, None, ActivityEventType.PARSED)
         await session.commit()
         logger.info("ResumeFile marked PARSED", extra=log_ctx)
         parsed_resume_id = parsed_resume.id
@@ -280,6 +286,9 @@ async def _mark_failed(
                     rf,
                     upload_status=UploadStatus.FAILED,
                     error_message=error[:1000],
+                )
+                await CandidateActivityRepository(session).create(
+                    rf_id, None, ActivityEventType.PARSE_FAILED
                 )
             await session.commit()
     except Exception as exc:

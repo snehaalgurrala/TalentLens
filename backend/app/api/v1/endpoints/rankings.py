@@ -61,6 +61,8 @@ def _to_response(entry) -> CandidateRankingResponse:
         current_company=entry.current_company,
         years_of_experience=entry.years_of_experience,
         review_status=entry.review_status,
+        bonus_points=entry.bonus_points,
+        preferred_company_matched=entry.preferred_company_matched,
     )
 
 

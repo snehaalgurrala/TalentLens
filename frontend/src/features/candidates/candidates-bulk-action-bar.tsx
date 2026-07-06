@@ -21,28 +21,44 @@ import {
 } from "@/components/ui/select"
 import { Stack } from "@/components/layout/stack"
 import {
+  useBulkArchive,
   useBulkAssignRecruiter,
   useBulkDeleteCandidates,
   useBulkReject,
+  useBulkRestore,
   useBulkShortlist,
+  useBulkUpdatePipelineStage,
   useOrgMembers,
 } from "@/hooks"
+import type { PipelineStage } from "@/types"
+
+import { PIPELINE_STAGE_OPTIONS } from "./constants"
 
 export interface CandidatesBulkActionBarProps {
   selectedIds: string[]
   onClear: () => void
+  /** Show the Restore action — pass true only when every selected candidate
+   * is currently in a terminal stage (REJECTED/WITHDRAWN/ARCHIVED). Kept as a
+   * boolean prop so this bar stays dumb/reusable across the table and board. */
+  showRestore?: boolean
 }
 
-function CandidatesBulkActionBar({ selectedIds, onClear }: CandidatesBulkActionBarProps) {
+function CandidatesBulkActionBar({ selectedIds, onClear, showRestore = false }: CandidatesBulkActionBarProps) {
   const [assignOpen, setAssignOpen] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
+  const [archiveOpen, setArchiveOpen] = React.useState(false)
+  const [stageMoveOpen, setStageMoveOpen] = React.useState(false)
   const [recruiterId, setRecruiterId] = React.useState("")
+  const [targetStage, setTargetStage] = React.useState<PipelineStage>("SHORTLISTED")
 
   const membersQuery = useOrgMembers()
   const bulkShortlist = useBulkShortlist()
   const bulkReject = useBulkReject()
   const bulkAssign = useBulkAssignRecruiter()
   const bulkDelete = useBulkDeleteCandidates()
+  const bulkArchive = useBulkArchive()
+  const bulkRestore = useBulkRestore()
+  const bulkStageMove = useBulkUpdatePipelineStage()
 
   function reportResult(action: string, result: { succeeded: string[]; failed: { reason: string }[] }) {
     if (result.failed.length > 0) {
@@ -90,7 +106,44 @@ function CandidatesBulkActionBar({ selectedIds, onClear }: CandidatesBulkActionB
     })
   }
 
-  const isWorking = bulkShortlist.isPending || bulkReject.isPending || bulkAssign.isPending || bulkDelete.isPending
+  function handleBulkArchive() {
+    bulkArchive.mutate(selectedIds, {
+      onSuccess: (result) => {
+        reportResult("Archived", result)
+        setArchiveOpen(false)
+      },
+      onError: (error) => toast.error(error.message || "Bulk archive failed"),
+    })
+  }
+
+  function handleBulkRestore() {
+    bulkRestore.mutate(selectedIds, {
+      onSuccess: (result) => reportResult("Restored", result),
+      onError: (error) => toast.error(error.message || "Bulk restore failed"),
+    })
+  }
+
+  function handleBulkStageMove() {
+    bulkStageMove.mutate(
+      { resumeFileIds: selectedIds, pipelineStage: targetStage },
+      {
+        onSuccess: (result) => {
+          reportResult("Moved", result)
+          setStageMoveOpen(false)
+        },
+        onError: (error) => toast.error(error.message || "Bulk stage move failed"),
+      }
+    )
+  }
+
+  const isWorking =
+    bulkShortlist.isPending ||
+    bulkReject.isPending ||
+    bulkAssign.isPending ||
+    bulkDelete.isPending ||
+    bulkArchive.isPending ||
+    bulkRestore.isPending ||
+    bulkStageMove.isPending
 
   return (
     <>
@@ -112,6 +165,17 @@ function CandidatesBulkActionBar({ selectedIds, onClear }: CandidatesBulkActionB
           <Button variant="outline" size="sm" onClick={() => setAssignOpen(true)} disabled={isWorking}>
             Assign Recruiter
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setStageMoveOpen(true)} disabled={isWorking}>
+            Move Stage
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setArchiveOpen(true)} disabled={isWorking}>
+            Archive
+          </Button>
+          {showRestore && (
+            <Button variant="outline" size="sm" onClick={handleBulkRestore} disabled={isWorking}>
+              Restore
+            </Button>
+          )}
           <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)} disabled={isWorking}>
             Delete
           </Button>
@@ -162,6 +226,54 @@ function CandidatesBulkActionBar({ selectedIds, onClear }: CandidatesBulkActionB
             </Button>
             <Button variant="danger" isLoading={bulkDelete.isPending} onClick={handleBulkDelete}>
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Archive {selectedIds.length} candidate(s)?</DialogTitle>
+            <DialogDescription>
+              Archived candidates are hidden from the active pipeline but can be restored later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setArchiveOpen(false)}>
+              Cancel
+            </Button>
+            <Button isLoading={bulkArchive.isPending} onClick={handleBulkArchive}>
+              Archive
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={stageMoveOpen} onOpenChange={setStageMoveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move pipeline stage</DialogTitle>
+            <DialogDescription>Move {selectedIds.length} selected candidate(s) to a new stage.</DialogDescription>
+          </DialogHeader>
+          <Select value={targetStage} onValueChange={(v) => setTargetStage(v as PipelineStage)}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PIPELINE_STAGE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStageMoveOpen(false)}>
+              Cancel
+            </Button>
+            <Button isLoading={bulkStageMove.isPending} onClick={handleBulkStageMove}>
+              Move
             </Button>
           </DialogFooter>
         </DialogContent>

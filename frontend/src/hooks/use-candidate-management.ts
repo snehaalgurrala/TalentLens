@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { candidateService } from "@/services/candidate.service"
 import { campaignKeys } from "@/hooks/use-campaigns"
+import { dashboardKeys } from "@/hooks/use-dashboard"
 import { rankingKeys } from "@/hooks/use-rankings"
 import type {
   ApiError,
@@ -32,6 +33,7 @@ function useInvalidateAfterMutation() {
     void queryClient.invalidateQueries({ queryKey: candidateManagementKeys.all })
     void queryClient.invalidateQueries({ queryKey: rankingKeys.all })
     void queryClient.invalidateQueries({ queryKey: campaignKeys.all })
+    void queryClient.invalidateQueries({ queryKey: dashboardKeys.all })
   }
 }
 
@@ -114,6 +116,47 @@ export function useBulkDeleteCandidates() {
   const invalidate = useInvalidateAfterMutation()
   return useMutation<BulkActionResult, ApiError, string[]>({
     mutationFn: (resumeFileIds) => candidateService.bulkDelete(resumeFileIds),
+    onSuccess: invalidate,
+  })
+}
+
+export function useArchiveCandidate() {
+  const invalidate = useInvalidateAfterMutation()
+  return useMutation<ResumeFile, ApiError, string>({
+    mutationFn: (resumeFileId) => candidateService.archiveCandidate(resumeFileId),
+    onSuccess: invalidate,
+  })
+}
+
+export function useRestoreCandidate() {
+  const invalidate = useInvalidateAfterMutation()
+  return useMutation<ResumeFile, ApiError, string>({
+    mutationFn: (resumeFileId) => candidateService.restoreCandidate(resumeFileId),
+    onSuccess: invalidate,
+  })
+}
+
+export function useBulkArchive() {
+  const invalidate = useInvalidateAfterMutation()
+  return useMutation<BulkActionResult, ApiError, string[]>({
+    mutationFn: (resumeFileIds) => candidateService.bulkArchive(resumeFileIds),
+    onSuccess: invalidate,
+  })
+}
+
+export function useBulkRestore() {
+  const invalidate = useInvalidateAfterMutation()
+  return useMutation<BulkActionResult, ApiError, string[]>({
+    mutationFn: (resumeFileIds) => candidateService.bulkRestore(resumeFileIds),
+    onSuccess: invalidate,
+  })
+}
+
+export function useBulkUpdatePipelineStage() {
+  const invalidate = useInvalidateAfterMutation()
+  return useMutation<BulkActionResult, ApiError, { resumeFileIds: string[]; pipelineStage: PipelineStage }>({
+    mutationFn: ({ resumeFileIds, pipelineStage }) =>
+      candidateService.bulkUpdatePipelineStage(resumeFileIds, pipelineStage),
     onSuccess: invalidate,
   })
 }

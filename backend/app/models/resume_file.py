@@ -37,6 +37,12 @@ class PipelineStage(str, enum.Enum):
     INTERVIEW_SCHEDULED = "INTERVIEW_SCHEDULED"
     REJECTED = "REJECTED"
     HIRED = "HIRED"
+    ASSESSMENT_COMPLETED = "ASSESSMENT_COMPLETED"
+    INTERVIEW_COMPLETED = "INTERVIEW_COMPLETED"
+    OFFER_EXTENDED = "OFFER_EXTENDED"
+    OFFER_ACCEPTED = "OFFER_ACCEPTED"
+    WITHDRAWN = "WITHDRAWN"
+    ARCHIVED = "ARCHIVED"
 
 
 _PIPELINE_STAGE_ORDER: dict[PipelineStage, int] = {
@@ -49,6 +55,15 @@ _PIPELINE_STAGE_ORDER: dict[PipelineStage, int] = {
     PipelineStage.INTERVIEW_SCHEDULED: 6,
     PipelineStage.REJECTED: 7,
     PipelineStage.HIRED: 8,
+    # Appended, not interleaved: these stages have no upstream auto-nudge
+    # signal (see is_earlier_pipeline_stage callers), so their relative
+    # order here only matters for the terminal-most group at the end.
+    PipelineStage.ASSESSMENT_COMPLETED: 9,
+    PipelineStage.INTERVIEW_COMPLETED: 10,
+    PipelineStage.OFFER_EXTENDED: 11,
+    PipelineStage.OFFER_ACCEPTED: 12,
+    PipelineStage.WITHDRAWN: 13,
+    PipelineStage.ARCHIVED: 14,
 }
 
 

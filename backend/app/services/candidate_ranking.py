@@ -97,6 +97,8 @@ class CandidateRankingEntry:
     current_company: str | None
     years_of_experience: float | None
     review_status: ReviewStatus
+    bonus_points: float
+    preferred_company_matched: bool
 
 
 # ── Service ──────────────────────────────────────────────────────────────────
@@ -267,6 +269,8 @@ class CandidateRankingService:
             current_company=candidate.current_company,
             years_of_experience=candidate.years_of_experience,
             review_status=resume_file.review_status,
+            bonus_points=breakdown.bonus_points,
+            preferred_company_matched=breakdown.preferred_company_matched,
         )
 
     def _recommendation(self, score: float) -> str:

@@ -1,7 +1,9 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { LayoutGrid, List } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -16,6 +18,7 @@ import { CandidatesBulkActionBar } from "./candidates-bulk-action-bar"
 import { CandidatesMobileCards } from "./candidates-mobile-card"
 import { CandidatesTable } from "./candidates-table"
 import { CandidatesToolbar } from "./candidates-toolbar"
+import { TERMINAL_STAGES } from "./constants"
 
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 350
@@ -122,20 +125,34 @@ function CandidatesListView() {
 
   return (
     <Stack gap="lg">
-      <CandidatesToolbar
-        campaigns={campaigns}
-        selectedCampaignId={selectedCampaignId}
-        onCampaignChange={handleCampaignChange}
-        searchInput={searchInput}
-        onSearchChange={setSearchInput}
-        filters={filters}
-        onFiltersChange={setFilters}
-        filterDrawerOpen={filterDrawerOpen}
-        onFilterDrawerOpenChange={setFilterDrawerOpen}
-        onRefresh={() => candidatesQuery.refetch()}
-        onExportCsv={handleExportCsv}
-        exportDisabled={candidates.length === 0}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <CandidatesToolbar
+          campaigns={campaigns}
+          selectedCampaignId={selectedCampaignId}
+          onCampaignChange={handleCampaignChange}
+          searchInput={searchInput}
+          onSearchChange={setSearchInput}
+          filters={filters}
+          onFiltersChange={setFilters}
+          filterDrawerOpen={filterDrawerOpen}
+          onFilterDrawerOpenChange={setFilterDrawerOpen}
+          onRefresh={() => candidatesQuery.refetch()}
+          onExportCsv={handleExportCsv}
+          exportDisabled={candidates.length === 0}
+        />
+        <div className="flex items-center gap-2">
+          <Button variant="default" size="sm" disabled>
+            <List className="size-3.5" aria-hidden="true" />
+            Table
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/candidates/board">
+              <LayoutGrid className="size-3.5" aria-hidden="true" />
+              Board
+            </Link>
+          </Button>
+        </div>
+      </div>
 
       {!rankingAvailable && selectedCampaignId && (
         <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning-emphasis">
@@ -147,6 +164,12 @@ function CandidatesListView() {
         <CandidatesBulkActionBar
           selectedIds={Array.from(selectedIds)}
           onClear={() => setSelectedIds(new Set())}
+          showRestore={
+            candidates.length > 0 &&
+            candidates
+              .filter((c) => selectedIds.has(c.resume_file_id))
+              .every((c) => TERMINAL_STAGES.has(c.pipeline_stage))
+          }
         />
       )}
 

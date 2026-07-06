@@ -73,6 +73,8 @@ def make_entry(**overrides) -> CandidateRankingEntry:
         current_company="Acme Corp",
         years_of_experience=5.0,
         review_status=ReviewStatus.PENDING,
+        bonus_points=0.0,
+        preferred_company_matched=False,
     )
     defaults.update(overrides)
     return CandidateRankingEntry(**defaults)

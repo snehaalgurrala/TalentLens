@@ -23,8 +23,10 @@ from typing import Any
 from celery import Task
 
 from app.db.session import AsyncSessionLocal
+from app.models.candidate_activity import ActivityEventType
 from app.models.embedding import EmbeddingStatus
 from app.models.resume_file import PipelineStage, is_earlier_pipeline_stage
+from app.repositories.candidate_activity import CandidateActivityRepository
 from app.repositories.job_description import JobDescriptionRepository
 from app.repositories.parsed_resume import ParsedResumeRepository
 from app.repositories.resume_file import ResumeFileRepository
@@ -56,6 +58,9 @@ async def _run_generate_resume_embedding(
                     rf.pipeline_stage, PipelineStage.RANKED
                 ):
                     await rf_repo.update(rf, pipeline_stage=PipelineStage.RANKED)
+                    await CandidateActivityRepository(session).create(
+                        rf.id, None, ActivityEventType.RANKED
+                    )
         finally:
             # Commit whatever state was reached (READY, or FAILED as set
             # internally by the service) even if an exception is about to

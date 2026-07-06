@@ -28,6 +28,15 @@ class CandidateRepository:
         )
         return list(result.scalars().all())
 
+    async def get_by_id_and_org(self, candidate_id: uuid.UUID, org_id: uuid.UUID) -> Candidate | None:
+        result = await self.session.execute(
+            select(Candidate).where(
+                Candidate.id == candidate_id,
+                Candidate.organization_id == org_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def create(self, **kwargs: Any) -> Candidate:
         candidate = Candidate(**kwargs)
         self.session.add(candidate)

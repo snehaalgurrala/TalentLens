@@ -7,6 +7,7 @@ from app.api.deps import DBSession, RequireRoles
 from app.models.user import User, UserRole
 from app.repositories.campaign import CampaignRepository
 from app.repositories.candidate import CandidateRepository
+from app.repositories.candidate_activity import CandidateActivityRepository
 from app.repositories.job_description import JobDescriptionRepository
 from app.repositories.parsed_resume import ParsedResumeRepository
 from app.repositories.resume_file import ResumeFileRepository
@@ -16,6 +17,7 @@ from app.schemas.candidate_management import (
     BulkActionRequest,
     BulkActionResult,
     BulkAssignRecruiterRequest,
+    BulkPipelineStageRequest,
     NotesUpdate,
     PipelineStageUpdate,
     RecruiterAssignmentUpdate,
@@ -44,6 +46,7 @@ def get_candidate_management_service(db: DBSession) -> CandidateManagementServic
         campaign_repo=CampaignRepository(db),
         user_repo=UserRepository(db),
         ranking_service=ranking_service,
+        activity_repo=CandidateActivityRepository(db),
     )
 
 
@@ -113,6 +116,47 @@ async def bulk_delete(
     current_user: RecruiterUser,
 ) -> BulkActionResult:
     return await service.bulk_delete(data.resume_file_ids, current_user)
+
+
+@router.post(
+    "/bulk/archive",
+    response_model=BulkActionResult,
+    summary="Archive multiple candidates",
+)
+async def bulk_archive(
+    data: BulkActionRequest,
+    service: CandidateManagementServiceDep,
+    current_user: RecruiterUser,
+) -> BulkActionResult:
+    return await service.bulk_archive(data.resume_file_ids, current_user)
+
+
+@router.post(
+    "/bulk/restore",
+    response_model=BulkActionResult,
+    summary="Restore multiple candidates from a terminal stage",
+)
+async def bulk_restore(
+    data: BulkActionRequest,
+    service: CandidateManagementServiceDep,
+    current_user: RecruiterUser,
+) -> BulkActionResult:
+    return await service.bulk_restore(data.resume_file_ids, current_user)
+
+
+@router.post(
+    "/bulk/pipeline-stage",
+    response_model=BulkActionResult,
+    summary="Move multiple candidates to a pipeline stage",
+)
+async def bulk_update_pipeline_stage(
+    data: BulkPipelineStageRequest,
+    service: CandidateManagementServiceDep,
+    current_user: RecruiterUser,
+) -> BulkActionResult:
+    return await service.bulk_update_pipeline_stage(
+        data.resume_file_ids, data.pipeline_stage, current_user
+    )
 
 
 # ── Single-record actions ──────────────────────────────────────────────────────
@@ -188,6 +232,37 @@ async def reject_candidate(
     current_user: RecruiterUser,
 ) -> ResumeFileResponse:
     rf = await service.reject(resume_file_id, current_user)
+    return ResumeFileResponse.model_validate(rf)
+
+
+@router.post(
+    "/{resume_file_id}/archive",
+    response_model=ResumeFileResponse,
+    summary="Archive a candidate",
+)
+async def archive_candidate(
+    resume_file_id: uuid.UUID,
+    service: CandidateManagementServiceDep,
+    current_user: RecruiterUser,
+) -> ResumeFileResponse:
+    rf = await service.archive(resume_file_id, current_user)
+    return ResumeFileResponse.model_validate(rf)
+
+
+@router.post(
+    "/{resume_file_id}/restore",
+    response_model=ResumeFileResponse,
+    summary="Restore a candidate from a terminal stage",
+    responses={
+        422: {"description": "Candidate is not currently in a terminal stage."},
+    },
+)
+async def restore_candidate(
+    resume_file_id: uuid.UUID,
+    service: CandidateManagementServiceDep,
+    current_user: RecruiterUser,
+) -> ResumeFileResponse:
+    rf = await service.restore(resume_file_id, current_user)
     return ResumeFileResponse.model_validate(rf)
 
 

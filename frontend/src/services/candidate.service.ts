@@ -2,13 +2,36 @@ import { api, toApiError } from "@/services/api"
 import { apiClient } from "@/services/axios"
 import type {
   BulkActionResult,
+  CandidateActivity,
   CandidateListFilters,
   CandidateListResponse,
+  CandidateMatchAnalysis,
+  CandidateNote,
+  CandidateProfile,
   CandidateRanking,
+  CandidateTask,
   PipelineStage,
   ResumeFile,
+  TaskPriority,
+  TaskStatus,
   UploadResponse,
 } from "@/types"
+
+export interface CreateTaskPayload {
+  title: string
+  description?: string | null
+  due_date?: string | null
+  priority?: TaskPriority
+  assignee_id?: string | null
+}
+
+export interface UpdateTaskPayload {
+  title?: string
+  description?: string | null
+  due_date?: string | null
+  priority?: TaskPriority
+  status?: TaskStatus
+}
 
 export const candidateService = {
   listRankings: (campaignId: string) =>
@@ -62,6 +85,10 @@ export const candidateService = {
   rejectCandidate: (resumeFileId: string) =>
     api.post<ResumeFile>(`/candidates/${resumeFileId}/reject`),
   deleteCandidate: (resumeFileId: string) => api.delete<void>(`/candidates/${resumeFileId}`),
+  archiveCandidate: (resumeFileId: string) =>
+    api.post<ResumeFile>(`/candidates/${resumeFileId}/archive`),
+  restoreCandidate: (resumeFileId: string) =>
+    api.post<ResumeFile>(`/candidates/${resumeFileId}/restore`),
 
   bulkShortlist: (resumeFileIds: string[]) =>
     api.post<BulkActionResult>(`/candidates/bulk/shortlist`, { resume_file_ids: resumeFileIds }),
@@ -74,4 +101,49 @@ export const candidateService = {
     }),
   bulkDelete: (resumeFileIds: string[]) =>
     api.post<BulkActionResult>(`/candidates/bulk/delete`, { resume_file_ids: resumeFileIds }),
+  bulkArchive: (resumeFileIds: string[]) =>
+    api.post<BulkActionResult>(`/candidates/bulk/archive`, { resume_file_ids: resumeFileIds }),
+  bulkRestore: (resumeFileIds: string[]) =>
+    api.post<BulkActionResult>(`/candidates/bulk/restore`, { resume_file_ids: resumeFileIds }),
+  bulkUpdatePipelineStage: (resumeFileIds: string[], pipelineStage: PipelineStage) =>
+    api.post<BulkActionResult>(`/candidates/bulk/pipeline-stage`, {
+      resume_file_ids: resumeFileIds,
+      pipeline_stage: pipelineStage,
+    }),
+
+  getProfile: (id: string) => api.get<CandidateProfile>(`/candidates/${id}/profile`),
+  getMatchAnalysis: (id: string) =>
+    api.get<CandidateMatchAnalysis>(`/candidates/${id}/match-analysis`),
+
+  listNotes: (id: string) => api.get<CandidateNote[]>(`/candidates/${id}/notes`),
+  createNote: (id: string, body: string, mentionedUserIds: string[] = []) =>
+    api.post<CandidateNote>(`/candidates/${id}/notes`, {
+      body,
+      mentioned_user_ids: mentionedUserIds,
+    }),
+  updateNote: (id: string, noteId: string, body: string, mentionedUserIds: string[] = []) =>
+    api.patch<CandidateNote>(`/candidates/${id}/notes/${noteId}`, {
+      body,
+      mentioned_user_ids: mentionedUserIds,
+    }),
+  deleteNote: (id: string, noteId: string) =>
+    api.delete<void>(`/candidates/${id}/notes/${noteId}`),
+  pinNote: (id: string, noteId: string, isPinned: boolean) =>
+    api.patch<CandidateNote>(`/candidates/${id}/notes/${noteId}/pin`, { is_pinned: isPinned }),
+
+  listActivity: (id: string) => api.get<CandidateActivity[]>(`/candidates/${id}/activity`),
+
+  listTasks: (id: string) => api.get<CandidateTask[]>(`/candidates/${id}/tasks`),
+  createTask: (id: string, data: CreateTaskPayload) =>
+    api.post<CandidateTask>(`/candidates/${id}/tasks`, data),
+  updateTask: (id: string, taskId: string, data: UpdateTaskPayload) =>
+    api.patch<CandidateTask>(`/candidates/${id}/tasks/${taskId}`, data),
+  completeTask: (id: string, taskId: string) =>
+    api.post<CandidateTask>(`/candidates/${id}/tasks/${taskId}/complete`),
+  reassignTask: (id: string, taskId: string, assigneeId: string | null) =>
+    api.patch<CandidateTask>(`/candidates/${id}/tasks/${taskId}/reassign`, {
+      assignee_id: assigneeId,
+    }),
+  deleteTask: (id: string, taskId: string) =>
+    api.delete<void>(`/candidates/${id}/tasks/${taskId}`),
 }

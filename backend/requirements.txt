@@ -34,3 +34,7 @@ python-docx==1.1.2
 
 # ── Local embeddings (no external API calls) ────────────────────
 sentence-transformers==3.3.1
+
+# ── Local speech-to-text (no external API calls; requires the ffmpeg ────
+# binary on PATH — see docs/phase5-sprint5.3-prompt7-speech-ai-foundation.md)
+openai-whisper==20250625

@@ -1,4 +1,24 @@
 # Re-export all models so Alembic's env.py discovers them via `import app.models`.
+from app.models.assessment_analysis import (  # noqa: F401
+    AnalysisStatus,
+    AnalysisType,
+    AssessmentAnalysis,
+)
+from app.models.assessment_answer import AssessmentAnswer  # noqa: F401
+from app.models.assessment_recording import (  # noqa: F401
+    AssessmentRecording,
+    RecordingStatus,
+    RecordingType,
+)
+from app.models.assessment_session import (  # noqa: F401
+    AssessmentSection,
+    AssessmentSession,
+    AssessmentSessionStatus,
+)
+from app.models.assessment_transcript import (  # noqa: F401
+    AssessmentTranscript,
+    TranscriptStatus,
+)
 from app.models.campaign import (  # noqa: F401
     Campaign,
     CampaignPriority,

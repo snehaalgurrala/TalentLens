@@ -131,6 +131,8 @@ services:
     container_name: talentlens-worker
     restart: unless-stopped
     command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+    volumes:
+      - ./backend:/app
     environment:
       APP_ENV: development
       LOG_LEVEL: INFO

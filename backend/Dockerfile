@@ -7,10 +7,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# System deps (gcc needed for some C-extension wheels)
+# System deps (gcc needed for some C-extension wheels; ffmpeg is required
+# at runtime by openai-whisper to decode uploaded audio)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     curl \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

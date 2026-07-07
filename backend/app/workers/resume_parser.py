@@ -17,7 +17,6 @@ Idempotency     : A resume already in PARSED state is silently skipped.
                   A retry that finds an existing ParsedResume updates it in place.
 """
 
-import asyncio
 import logging
 import uuid
 from pathlib import Path
@@ -41,7 +40,7 @@ from app.services.resume_extraction import (
     extract_text_from_pdf,
     extract_text_from_zip,
 )
-from app.workers.celery_app import celery_app
+from app.workers.celery_app import celery_app, run_task
 from app.workers.embedding_worker import generate_resume_embedding
 
 logger = logging.getLogger(__name__)
@@ -104,17 +103,22 @@ async def _call_ai_service(
 
 
 def _candidate_kwargs(ai_data: dict) -> dict:
+    # The AI service's ParseResumeResponse nests these under "candidate"
+    # (see ai-services/app/schemas/resume.py:CandidateInfo) — reading them
+    # off the top level of ai_data silently produced "Unknown Unknown" with
+    # no email/phone/company for every real parse.
+    candidate_info = ai_data.get("candidate") or {}
     return {
-        "first_name": (ai_data.get("first_name") or "").strip() or "Unknown",
-        "last_name": (ai_data.get("last_name") or "").strip() or "Unknown",
-        "email": ai_data.get("email") or None,
-        "phone": ai_data.get("phone") or None,
-        "linkedin_url": ai_data.get("linkedin_url") or None,
-        "github_url": ai_data.get("github_url") or None,
-        "location": ai_data.get("location") or None,
-        "years_of_experience": ai_data.get("years_of_experience"),
-        "current_company": ai_data.get("current_company") or None,
-        "current_role": ai_data.get("current_role") or None,
+        "first_name": (candidate_info.get("first_name") or "").strip() or "Unknown",
+        "last_name": (candidate_info.get("last_name") or "").strip() or "Unknown",
+        "email": candidate_info.get("email") or None,
+        "phone": candidate_info.get("phone") or None,
+        "linkedin_url": candidate_info.get("linkedin_url") or None,
+        "github_url": candidate_info.get("github_url") or None,
+        "location": candidate_info.get("location") or None,
+        "years_of_experience": candidate_info.get("years_of_experience"),
+        "current_company": candidate_info.get("current_company") or None,
+        "current_role": candidate_info.get("current_role") or None,
     }
 
 
@@ -200,7 +204,7 @@ async def _run_parse_resume(
         parsed_repo = ParsedResumeRepository(session)
 
         # Upsert Candidate: match by email within the same org, otherwise create
-        email = ai_data.get("email") or None
+        email = (ai_data.get("candidate") or {}).get("email") or None
         candidate = None
         if email:
             candidate = await candidate_repo.find_by_email_and_org(email, org_id)
@@ -301,6 +305,33 @@ async def _mark_failed(
 # ── Celery task (sync entry point) ────────────────────────────────────────────
 
 
+async def _run_parse_resume_with_recovery(resume_file_id: str) -> None:
+    """Runs the parse workflow and, on failure, persists the FAILED status in
+    the same coroutine/event loop as the work itself, via a single run_task()
+    call in _parse_resume_task below (see celery_app.run_task's docstring for
+    why a second, separate asyncio.run() call for _mark_failed is unsafe:
+    it hands AsyncSessionLocal's connection pool a connection tied to a
+    different event loop, which raises 'RuntimeError: Event loop is closed'
+    during cleanup and silently swallows the failure — leaving the
+    ResumeFile stuck at PROCESSING forever with no error_message).
+    """
+    try:
+        await _run_parse_resume(resume_file_id)
+    except ExtractionError as exc:
+        await _mark_failed(resume_file_id, f"Extraction failed: {exc}")
+        raise
+    except httpx.HTTPStatusError as exc:
+        status_code = exc.response.status_code
+        if status_code < 500:
+            await _mark_failed(resume_file_id, f"AI service {status_code}: {exc}")
+        else:
+            await _mark_failed(resume_file_id, f"AI service 5xx ({status_code})")
+        raise
+    except Exception as exc:
+        await _mark_failed(resume_file_id, str(exc)[:1000])
+        raise
+
+
 def _parse_resume_task(self: Task, resume_file_id: str) -> None:
     """
     Core task logic extracted from the decorator for direct testability.
@@ -310,13 +341,12 @@ def _parse_resume_task(self: Task, resume_file_id: str) -> None:
     logger.info("Task started", extra=log_ctx)
 
     try:
-        asyncio.run(_run_parse_resume(resume_file_id))
+        run_task(_run_parse_resume_with_recovery(resume_file_id))
         logger.info("Task completed", extra=log_ctx)
 
     except ExtractionError as exc:
         # Permanent — a corrupted file won't become readable on retry
         logger.error("Extraction failed (permanent)", extra={**log_ctx, "error": str(exc)})
-        asyncio.run(_mark_failed(resume_file_id, f"Extraction failed: {exc}"))
         raise  # Celery marks task as FAILURE
 
     except httpx.HTTPStatusError as exc:
@@ -327,12 +357,8 @@ def _parse_resume_task(self: Task, resume_file_id: str) -> None:
                 "AI service rejected request (permanent)",
                 extra={**log_ctx, "http_status": status_code},
             )
-            asyncio.run(
-                _mark_failed(resume_file_id, f"AI service {status_code}: {exc}")
-            )
             raise  # no retry
         # 5xx — transient server-side error
-        asyncio.run(_mark_failed(resume_file_id, f"AI service 5xx ({status_code})"))
         countdown = 30 * (2 ** self.request.retries)
         logger.warning(
             "AI service 5xx — retrying",
@@ -341,7 +367,6 @@ def _parse_resume_task(self: Task, resume_file_id: str) -> None:
         raise self.retry(exc=exc, countdown=countdown)
 
     except Exception as exc:
-        asyncio.run(_mark_failed(resume_file_id, str(exc)[:1000]))
         countdown = 30 * (2 ** self.request.retries)
         logger.exception(
             "Unexpected error — retrying",

@@ -118,6 +118,21 @@ class TestCosineSimilarity:
         with pytest.raises(ValueError, match="dimension mismatch"):
             cosine_similarity([1.0, 2.0, 3.0], [1.0, 2.0])
 
+    def test_numpy_float32_inputs_return_native_python_float(self):
+        """Regression: pgvector decodes embedding columns as numpy.float32
+        elements. round(numpy.float32, 4) silently stays numpy.float32,
+        which Pydantic can't serialize -- this crashed the match-analysis
+        endpoint for every candidate. cosine_similarity must always hand
+        back a native float regardless of the input element type."""
+        import numpy as np
+
+        result = cosine_similarity(
+            np.array([1.0, 2.0, 3.0], dtype=np.float32),
+            np.array([1.0, 2.0, 3.0], dtype=np.float32),
+        )
+        assert type(result) is float
+        assert round(result, 4) == pytest.approx(1.0)
+
 
 # ── text-matching primitives ───────────────────────────────────────────────
 
@@ -223,6 +238,11 @@ class TestMatchingServiceScoring:
         assert result.projects_score == 100
         assert result.certification_score == 100
         assert result.overall_score == 100
+        # Regression: the "no certifications required" branch must still
+        # populate "missing" (empty), since ExplainableMatchingService reads
+        # details["missing"] unconditionally and previously raised KeyError
+        # whenever a JD had no certification requirements.
+        assert result.explanations["certification"].details["missing"] == []
 
     def test_partial_skill_match(self):
         svc = MatchingService()

@@ -1,5 +1,6 @@
 export * from "./api.types"
 export * from "./assessment.types"
+export * from "./assessment-session.types"
 export * from "./auth.types"
 export * from "./campaign.types"
 export * from "./candidate.types"

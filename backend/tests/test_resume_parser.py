@@ -55,17 +55,23 @@ def _make_candidate() -> SimpleNamespace:
 
 
 def _make_ai_response(*, email: str | None = "alice@example.com") -> dict:
+    # Matches ai-services' actual ParseResumeResponse shape (CandidateInfo
+    # nested under "candidate" — see ai-services/app/schemas/resume.py).
     return {
-        "first_name": "Alice",
-        "last_name": "Smith",
-        "email": email,
-        "phone": "+1-555-0100",
-        "linkedin_url": None,
-        "github_url": "https://github.com/alice",
-        "location": "New York",
-        "years_of_experience": 5.0,
-        "current_company": "Acme Corp",
-        "current_role": "Software Engineer",
+        "candidate": {
+            "first_name": "Alice",
+            "last_name": "Smith",
+            "email": email,
+            "phone": "+1-555-0100",
+            "linkedin_url": None,
+            "github_url": "https://github.com/alice",
+            "location": "New York",
+            "years_of_experience": 5.0,
+            "current_company": "Acme Corp",
+            "current_role": "Software Engineer",
+        },
+        "structured_resume": {},
+        "confidence": 0.9,
     }
 
 
@@ -130,7 +136,7 @@ class TestCandidateKwargs:
         assert kwargs["last_name"] == "Unknown"
 
     def test_empty_string_names_default_to_unknown(self):
-        kwargs = _candidate_kwargs({"first_name": "  ", "last_name": ""})
+        kwargs = _candidate_kwargs({"candidate": {"first_name": "  ", "last_name": ""}})
         assert kwargs["first_name"] == "Unknown"
         assert kwargs["last_name"] == "Unknown"
 
@@ -143,6 +149,16 @@ class TestCandidateKwargs:
         assert kwargs["location"] is None
         assert kwargs["current_company"] is None
         assert kwargs["current_role"] is None
+
+    def test_fields_at_top_level_are_ignored(self):
+        """Regression: ai-services' ParseResumeResponse always nests candidate
+        fields under "candidate" (see ai-services/app/schemas/resume.py). A
+        top-level first_name/email etc. (the wrong, pre-fix shape) must NOT
+        be picked up -- every real parse silently produced "Unknown Unknown"
+        with no email/phone/company until this was caught in a live E2E run."""
+        kwargs = _candidate_kwargs({"first_name": "Alice", "email": "alice@example.com"})
+        assert kwargs["first_name"] == "Unknown"
+        assert kwargs["email"] is None
 
 
 # ── _extract_text ─────────────────────────────────────────────────────────────

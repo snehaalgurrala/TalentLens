@@ -15,7 +15,6 @@ Transient errors : model load failures and anything else — retried up to
                    correctly excludes it while the retry is pending).
 """
 
-import asyncio
 import logging
 import uuid
 from typing import Any
@@ -31,7 +30,7 @@ from app.repositories.job_description import JobDescriptionRepository
 from app.repositories.parsed_resume import ParsedResumeRepository
 from app.repositories.resume_file import ResumeFileRepository
 from app.services.local_embedding_service import LocalEmbeddingService
-from app.workers.celery_app import celery_app
+from app.workers.celery_app import celery_app, run_task
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +92,7 @@ def _generate_resume_embedding_task(self: Task, parsed_resume_id: str) -> None:
     log_ctx = {"parsed_resume_id": parsed_resume_id, "attempt": self.request.retries + 1}
     logger.info("Resume embedding task started", extra=log_ctx)
     try:
-        asyncio.run(_run_generate_resume_embedding(parsed_resume_id))
+        run_task(_run_generate_resume_embedding(parsed_resume_id))
         logger.info("Resume embedding task completed", extra=log_ctx)
     except ValueError as exc:
         logger.error("Resume embedding failed (permanent)", extra={**log_ctx, "error": str(exc)})
@@ -110,7 +109,7 @@ def _generate_job_description_embedding_task(self: Task, job_description_id: str
     log_ctx = {"job_description_id": job_description_id, "attempt": self.request.retries + 1}
     logger.info("Job description embedding task started", extra=log_ctx)
     try:
-        asyncio.run(_run_generate_job_description_embedding(job_description_id))
+        run_task(_run_generate_job_description_embedding(job_description_id))
         logger.info("Job description embedding task completed", extra=log_ctx)
     except ValueError as exc:
         logger.error(

@@ -112,7 +112,7 @@ class TestResumeEmbeddingTaskClassification:
         mock_self.request.retries = 0
 
         with patch(
-            "app.workers.embedding_worker.asyncio.run",
+            "app.workers.embedding_worker.run_task",
             MagicMock(side_effect=ValueError("no structured_json")),
         ):
             with pytest.raises(ValueError):
@@ -126,7 +126,7 @@ class TestResumeEmbeddingTaskClassification:
         mock_self.retry.side_effect = Retry()
 
         with patch(
-            "app.workers.embedding_worker.asyncio.run",
+            "app.workers.embedding_worker.run_task",
             MagicMock(side_effect=RuntimeError("boom")),
         ):
             with pytest.raises(Retry):
@@ -142,7 +142,7 @@ class TestJobDescriptionEmbeddingTaskClassification:
         mock_self.request.retries = 0
 
         with patch(
-            "app.workers.embedding_worker.asyncio.run",
+            "app.workers.embedding_worker.run_task",
             MagicMock(side_effect=ValueError("no structured_json")),
         ):
             with pytest.raises(ValueError):
@@ -156,7 +156,7 @@ class TestJobDescriptionEmbeddingTaskClassification:
         mock_self.retry.side_effect = Retry()
 
         with patch(
-            "app.workers.embedding_worker.asyncio.run",
+            "app.workers.embedding_worker.run_task",
             MagicMock(side_effect=RuntimeError("boom")),
         ):
             with pytest.raises(Retry):

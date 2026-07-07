@@ -63,6 +63,33 @@ class Settings(BaseSettings):
     LOCAL_EMBEDDING_BATCH_SIZE: int = 16
     LOCAL_EMBEDDING_MAX_INPUT_CHARS: int = 8000
 
+    # ── Speech AI — local Whisper transcription (no external API calls) ──
+    WHISPER_MODEL_NAME: str = "base"
+    WHISPER_DEVICE: str = "cpu"
+    WHISPER_MODEL_CACHE_DIR: str | None = None
+    WHISPER_MAX_AUDIO_SIZE_MB: int = 25
+
+    # ── Communication Analysis — deterministic Read Aloud scoring (no LLM calls) ──
+    # The product has exactly one Read Aloud reference sentence today, shown to
+    # every candidate regardless of campaign (see
+    # frontend/src/features/candidate-runner/mock-data.ts::readAloudSentence).
+    # This mirrors that fixed sentence on the backend until a future sprint adds
+    # per-campaign assessment content.
+    READ_ALOUD_REFERENCE_SENTENCE: str = (
+        "The quick brown fox jumps over the lazy dog while carrying a bag of "
+        "documents to the office."
+    )
+
+    # ── Communication Analysis — deterministic Listen & Repeat scoring ────
+    # (no LLM calls; semantic similarity via the local embedding model). The
+    # product has exactly one Listen & Repeat reference sentence today, shown
+    # to every candidate regardless of campaign (see
+    # frontend/src/features/candidate-runner/mock-data.ts::listenRepeatSentence).
+    LISTEN_REPEAT_REFERENCE_SENTENCE: str = (
+        "Innovation distinguishes between a leader and a follower in every "
+        "industry we serve."
+    )
+
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: Any) -> list[str]:

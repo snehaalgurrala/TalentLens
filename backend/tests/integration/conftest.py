@@ -34,6 +34,11 @@ _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 _APP_TABLES = [
     "organization_invitations",
     "scoring_rules",
+    "assessment_analyses",
+    "assessment_transcripts",
+    "assessment_recordings",
+    "assessment_answers",
+    "assessment_sessions",
     "parsed_resumes",
     "resume_files",
     "job_descriptions",

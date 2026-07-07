@@ -223,12 +223,17 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
             f"Embedding dimension mismatch: resume={len(a)} vs job_description={len(b)}. "
             "Both embeddings must come from the same provider/model to be comparable."
         )
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(y * y for y in b))
+    # pgvector hands back embedding columns as numpy.float32 elements (via
+    # numpy.ndarray or a list of boxed numpy scalars, depending on the
+    # driver). Coercing to native float here — the single point where every
+    # embedding enters scoring — keeps that numpy dtype from propagating
+    # into ScoreExplanation.details, which Pydantic can't serialize.
+    dot = sum(float(x) * float(y) for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(float(x) * float(x) for x in a))
+    norm_b = math.sqrt(sum(float(y) * float(y) for y in b))
     if norm_a == 0.0 or norm_b == 0.0:
         return 0.0
-    return dot / (norm_a * norm_b)
+    return float(dot / (norm_a * norm_b))
 
 
 def _build_synonym_index(skill_synonyms: dict[str, list[str]]) -> dict[str, str]:
@@ -701,7 +706,7 @@ class MatchingService:
                 score=100.0,
                 weight=weight,
                 summary=f"No {label} specified in the job description.",
-                details={"required": [], "matched": []},
+                details={"required": [], "matched": [], "missing": []},
             )
 
         threshold = self.weights.coverage_match_threshold

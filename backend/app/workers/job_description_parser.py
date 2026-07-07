@@ -19,7 +19,6 @@ Idempotency        : A job description already in COMPLETED state is silently sk
                       A retry re-fetches the row and updates it in place.
 """
 
-import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -32,7 +31,7 @@ from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.models.job_description import ParsingStatus
 from app.repositories.job_description import JobDescriptionRepository
-from app.workers.celery_app import celery_app
+from app.workers.celery_app import celery_app, run_task
 from app.workers.embedding_worker import generate_job_description_embedding
 
 logger = logging.getLogger(__name__)
@@ -182,6 +181,30 @@ async def _mark_failed(
 # ── Celery task (sync entry point) ────────────────────────────────────────────
 
 
+async def _run_parse_job_description_with_recovery(job_description_id: str) -> None:
+    """Runs the parse workflow and, on failure, persists the FAILED status in
+    the same coroutine/event loop as the work itself, via a single run_task()
+    call in _parse_job_description_task below. See
+    resume_parser._run_parse_resume_with_recovery and celery_app.run_task for
+    why a second, separate asyncio.run() call for _mark_failed is unsafe
+    here: it hands AsyncSessionLocal's connection pool a connection tied to
+    a different event loop, raising 'RuntimeError: Event loop is closed'
+    and silently swallowing the failure.
+    """
+    try:
+        await _run_parse_job_description(job_description_id)
+    except httpx.HTTPStatusError as exc:
+        status_code = exc.response.status_code
+        if status_code < 500:
+            await _mark_failed(job_description_id, f"AI service {status_code}: {exc}")
+        else:
+            await _mark_failed(job_description_id, f"AI service 5xx ({status_code})")
+        raise
+    except Exception as exc:
+        await _mark_failed(job_description_id, str(exc)[:1000])
+        raise
+
+
 def _parse_job_description_task(self: Task, job_description_id: str) -> None:
     """
     Core task logic extracted from the decorator for direct testability.
@@ -191,7 +214,7 @@ def _parse_job_description_task(self: Task, job_description_id: str) -> None:
     logger.info("Task started", extra=log_ctx)
 
     try:
-        asyncio.run(_run_parse_job_description(job_description_id))
+        run_task(_run_parse_job_description_with_recovery(job_description_id))
         logger.info("Task completed", extra=log_ctx)
 
     except httpx.HTTPStatusError as exc:
@@ -202,12 +225,8 @@ def _parse_job_description_task(self: Task, job_description_id: str) -> None:
                 "AI service rejected request (permanent)",
                 extra={**log_ctx, "http_status": status_code},
             )
-            asyncio.run(
-                _mark_failed(job_description_id, f"AI service {status_code}: {exc}")
-            )
             raise  # no retry
         # 5xx — transient server-side error
-        asyncio.run(_mark_failed(job_description_id, f"AI service 5xx ({status_code})"))
         countdown = 30 * (2 ** self.request.retries)
         logger.warning(
             "AI service 5xx — retrying",
@@ -216,7 +235,6 @@ def _parse_job_description_task(self: Task, job_description_id: str) -> None:
         raise self.retry(exc=exc, countdown=countdown)
 
     except Exception as exc:
-        asyncio.run(_mark_failed(job_description_id, str(exc)[:1000]))
         countdown = 30 * (2 ** self.request.retries)
         logger.exception(
             "Unexpected error — retrying",

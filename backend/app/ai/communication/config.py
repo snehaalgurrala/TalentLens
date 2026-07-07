@@ -39,3 +39,40 @@ def get_read_aloud_reference_sentence() -> str:
 
 def get_listen_repeat_reference_sentence() -> str:
     return settings.LISTEN_REPEAT_REFERENCE_SENTENCE
+
+
+# Communication Assessment (aggregate) scoring — see
+# docs/phase5-sprint5.5-prompt11-communication-intelligence.md. The two
+# sub-assessments are weighted equally; there's no product signal yet that
+# either communication skill matters more than the other for the roles this
+# MVP targets.
+OVERALL_READ_ALOUD_WEIGHT = 0.5
+OVERALL_LISTEN_REPEAT_WEIGHT = 0.5
+
+# Confidence score components, equally weighted (MVP assumption — no
+# empirical basis yet for weighting one signal over another). Reading/
+# listening completion measure how much of each recording the candidate
+# actually finished; semantic similarity doubles as a proxy for how
+# confident the Listen & Repeat comparison itself is (a low-similarity
+# transcript could mean the candidate paraphrased poorly, or that the
+# transcript/comparison was noisy — either way, confidence should drop).
+CONFIDENCE_READING_COMPLETION_WEIGHT = 1 / 3
+CONFIDENCE_LISTENING_COMPLETION_WEIGHT = 1 / 3
+CONFIDENCE_SIMILARITY_WEIGHT = 1 / 3
+
+# Strength / improvement detection thresholds — deterministic rules, no LLM.
+# See app.ai.communication.assessment_rules.
+READING_ACCURACY_STRENGTH_THRESHOLD = 95.0
+READING_ACCURACY_IMPROVEMENT_THRESHOLD = 80.0
+SEMANTIC_SIMILARITY_STRENGTH_THRESHOLD = 90.0
+SEMANTIC_SIMILARITY_IMPROVEMENT_THRESHOLD = 75.0
+
+# Reading-pace zones, in words per minute. COMFORTABLE is a strength signal;
+# below TOO_SLOW or above TOO_FAST is an improvement signal. The bands
+# between COMFORTABLE and TOO_SLOW/TOO_FAST are deliberately a dead zone
+# (neither flag fires) rather than picking an arbitrary boundary to split
+# them — an MVP assumption to revisit once real candidate data is available.
+READING_SPEED_COMFORTABLE_MIN_WPM = 110.0
+READING_SPEED_COMFORTABLE_MAX_WPM = 160.0
+READING_SPEED_TOO_SLOW_WPM = 90.0
+READING_SPEED_TOO_FAST_WPM = 180.0

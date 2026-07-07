@@ -8,6 +8,7 @@ from app.api.v1.endpoints import (
     campaigns,
     candidate_profile,
     candidates,
+    communication_assessment,
     dashboard,
     job_descriptions,
     organizations,
@@ -31,6 +32,11 @@ router.include_router(
 )
 router.include_router(
     assessment_analysis.router, prefix="/assessment/analysis", tags=["assessment-analysis"]
+)
+router.include_router(
+    communication_assessment.router,
+    prefix="/assessment/communication",
+    tags=["communication-assessment"],
 )
 router.include_router(resumes.router, tags=["resumes"])
 router.include_router(candidates.router, prefix="/candidates", tags=["candidates"])

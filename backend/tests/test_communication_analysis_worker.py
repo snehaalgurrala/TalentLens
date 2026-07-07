@@ -41,12 +41,20 @@ from app.workers.communication_analysis import (
 def _make_transcript(**overrides) -> SimpleNamespace:
     defaults = dict(
         id=uuid.uuid4(),
+        recording_id=uuid.uuid4(),
         organization_id=uuid.uuid4(),
         status=TranscriptStatus.COMPLETED,
         transcript="the quick brown fox",
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
+
+
+def _mock_execute_returning(scalar_value) -> AsyncMock:
+    """A session.execute(...) mock whose .scalar_one() returns scalar_value —
+    used to stub the AssessmentRecording.session_id lookup added for
+    communication-assessment dispatch."""
+    return AsyncMock(return_value=MagicMock(scalar_one=MagicMock(return_value=scalar_value)))
 
 
 def _make_analysis(**overrides) -> SimpleNamespace:
@@ -117,14 +125,17 @@ class TestRunAnalyzeReadAloudHappyPath:
         transcript = _make_transcript()
         analysis = _make_analysis(transcript_id=transcript.id, status=AnalysisStatus.PENDING)
         result = _make_analysis_result()
+        assessment_session_id = uuid.uuid4()
 
         session = AsyncMock()
         session.get = AsyncMock(return_value=transcript)
+        session.execute = _mock_execute_returning(assessment_session_id)
         session.commit = AsyncMock()
         session_factory = _make_session_factory(session)
 
         analysis_service = MagicMock()
         analysis_service.analyze = MagicMock(return_value=result)
+        assessment_dispatcher = MagicMock()
 
         with (
             patch("app.workers.communication_analysis.AssessmentAnalysisRepository"),
@@ -141,6 +152,7 @@ class TestRunAnalyzeReadAloudHappyPath:
                 9.5,
                 _session_factory=session_factory,
                 _analysis_service=analysis_service,
+                _assessment_dispatcher=assessment_dispatcher,
             )
 
             mock_service.create_pending.assert_awaited_once_with(
@@ -163,6 +175,7 @@ class TestRunAnalyzeReadAloudHappyPath:
                 analysis_json=result.comparison.model_dump(mode="json"),
             )
         assert session.commit.await_count == 2
+        assessment_dispatcher.assert_called_once_with(str(assessment_session_id))
 
     async def test_transcript_not_found_returns_silently(self):
         session = AsyncMock()
@@ -219,14 +232,17 @@ class TestRunAnalyzeListenRepeatHappyPath:
         transcript = _make_transcript()
         analysis = _make_analysis(transcript_id=transcript.id, status=AnalysisStatus.PENDING)
         result = _make_listen_repeat_result()
+        assessment_session_id = uuid.uuid4()
 
         session = AsyncMock()
         session.get = AsyncMock(return_value=transcript)
+        session.execute = _mock_execute_returning(assessment_session_id)
         session.commit = AsyncMock()
         session_factory = _make_session_factory(session)
 
         analysis_service = MagicMock()
         analysis_service.analyze = MagicMock(return_value=result)
+        assessment_dispatcher = MagicMock()
 
         with (
             patch("app.workers.communication_analysis.AssessmentAnalysisRepository"),
@@ -243,6 +259,7 @@ class TestRunAnalyzeListenRepeatHappyPath:
                 9.5,
                 _session_factory=session_factory,
                 _analysis_service=analysis_service,
+                _assessment_dispatcher=assessment_dispatcher,
             )
 
             mock_service.create_pending.assert_awaited_once_with(
@@ -262,6 +279,7 @@ class TestRunAnalyzeListenRepeatHappyPath:
                 analysis_json=result.metrics.model_dump(mode="json"),
             )
         assert session.commit.await_count == 2
+        assessment_dispatcher.assert_called_once_with(str(assessment_session_id))
 
     async def test_transcript_not_found_returns_silently(self):
         session = AsyncMock()

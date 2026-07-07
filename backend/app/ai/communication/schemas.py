@@ -43,3 +43,38 @@ class ListenRepeatMetrics(BaseModel):
 
 class ListenRepeatAnalysisResult(BaseModel):
     metrics: ListenRepeatMetrics
+
+
+class ReadAloudAssessmentInput(BaseModel):
+    """The subset of a COMPLETED READ_ALOUD AssessmentAnalysis row that the
+    CommunicationAssessmentEngine needs. Decoupled from the SQLAlchemy model
+    so the engine stays DB-free and directly unit-testable."""
+
+    overall_score: float
+    word_accuracy: float
+    reading_speed_wpm: float
+    completion_percentage: float
+
+
+class ListenRepeatAssessmentInput(BaseModel):
+    """The subset of a COMPLETED LISTEN_REPEAT AssessmentAnalysis row that
+    the CommunicationAssessmentEngine needs."""
+
+    overall_score: float
+    semantic_similarity: float
+    keyword_coverage: float
+    completion_percentage: float
+
+
+class CommunicationAssessmentSummary(BaseModel):
+    overview: str
+
+
+class CommunicationAssessmentResult(BaseModel):
+    overall_score: float
+    reading_score: float
+    listening_score: float
+    confidence_score: float
+    strengths: list[str]
+    improvements: list[str]
+    summary: CommunicationAssessmentSummary

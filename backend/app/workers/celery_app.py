@@ -19,6 +19,7 @@ celery_app = Celery(
         "app.workers.embedding_worker",
         "app.workers.speech_transcription",
         "app.workers.communication_analysis",
+        "app.workers.communication_assessment",
     ],
 )
 

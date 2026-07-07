@@ -1,4 +1,5 @@
 export * from "./use-animated-number"
+export * from "./use-assessment-dashboard"
 export * from "./use-auth"
 export * from "./use-campaigns"
 export * from "./use-candidate-management"

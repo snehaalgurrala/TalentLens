@@ -1,5 +1,6 @@
 export * from "./api"
 export * from "./assessment.service"
+export * from "./assessment-dashboard.service"
 export * from "./auth.service"
 export * from "./axios"
 export * from "./campaign.service"

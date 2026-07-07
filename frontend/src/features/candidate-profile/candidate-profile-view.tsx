@@ -15,6 +15,7 @@ import { CandidateProfileSidebar } from "./candidate-profile-sidebar"
 import { CandidateSummaryCards } from "./candidate-summary-cards"
 import { ActivityTab } from "./tabs/activity-tab"
 import { AiMatchTab } from "./tabs/ai-match-tab"
+import { AssessmentTab } from "./tabs/assessment-tab"
 import { CertificationsTab } from "./tabs/certifications-tab"
 import { EducationTab } from "./tabs/education-tab"
 import { ExperienceTab } from "./tabs/experience-tab"
@@ -103,6 +104,7 @@ function CandidateProfileView({ candidateId }: CandidateProfileViewProps) {
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="resume">Resume</TabsTrigger>
               <TabsTrigger value="ai-match">AI Match Analysis</TabsTrigger>
+              <TabsTrigger value="assessment">Assessment</TabsTrigger>
               <TabsTrigger value="experience">Experience</TabsTrigger>
               <TabsTrigger value="skills">Skills</TabsTrigger>
               <TabsTrigger value="education">Education</TabsTrigger>
@@ -121,6 +123,9 @@ function CandidateProfileView({ candidateId }: CandidateProfileViewProps) {
             </TabsContent>
             <TabsContent value="ai-match" className="pt-4">
               <AiMatchTab candidateId={candidateId} />
+            </TabsContent>
+            <TabsContent value="assessment" className="pt-4">
+              <AssessmentTab candidateId={candidateId} campaignId={profile.campaign.id} />
             </TabsContent>
             <TabsContent value="experience" className="pt-4">
               <ExperienceTab experience={profile.structured_resume.experience} />

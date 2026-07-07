@@ -29,6 +29,10 @@ from app.models.candidate import Candidate  # noqa: F401
 from app.models.candidate_activity import ActivityEventType, CandidateActivity  # noqa: F401
 from app.models.candidate_note import CandidateNote  # noqa: F401
 from app.models.candidate_task import CandidateTask, TaskPriority, TaskStatus  # noqa: F401
+from app.models.communication_assessment import (  # noqa: F401
+    CommunicationAssessment,
+    CommunicationAssessmentStatus,
+)
 from app.models.embedding import EmbeddingStatus  # noqa: F401
 from app.models.job_description import JobDescription, ParsingStatus  # noqa: F401
 from app.models.organization import Organization  # noqa: F401

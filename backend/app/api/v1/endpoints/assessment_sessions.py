@@ -1,17 +1,23 @@
 import logging
+import re
 import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, UploadFile, status
+from fastapi.responses import Response
 
 from app.api.deps import DBSession, RequireRoles
 from app.models.assessment_recording import RecordingType
 from app.models.user import User, UserRole
+from app.repositories.assessment_analysis import AssessmentAnalysisRepository
 from app.repositories.assessment_answer import AssessmentAnswerRepository
 from app.repositories.assessment_recording import AssessmentRecordingRepository
 from app.repositories.assessment_session import AssessmentSessionRepository
+from app.repositories.assessment_transcript import AssessmentTranscriptRepository
 from app.repositories.campaign import CampaignRepository
 from app.repositories.candidate import CandidateRepository
+from app.repositories.communication_assessment import CommunicationAssessmentRepository
+from app.schemas.assessment_dashboard import AssessmentSessionFullResponse
 from app.schemas.assessment_session import (
     AssessmentAnswerCreate,
     AssessmentAnswerResponse,
@@ -21,6 +27,7 @@ from app.schemas.assessment_session import (
     AssessmentSessionProgressUpdate,
     AssessmentSessionResponse,
 )
+from app.services.assessment_dashboard import AssessmentDashboardService
 from app.services.assessment_session import AssessmentSessionService
 from app.storage.base import StorageBackend as StorageBackendType
 from app.storage.factory import get_storage_backend
@@ -35,6 +42,33 @@ router = APIRouter()
 _require_recruiter_role = RequireRoles(UserRole.RECRUITER, UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN)
 RecruiterUser = Annotated[User, Depends(_require_recruiter_role)]
 StorageDep = Annotated[StorageBackendType, Depends(get_storage_backend)]
+
+
+def get_assessment_dashboard_service(db: DBSession) -> AssessmentDashboardService:
+    return AssessmentDashboardService(
+        session_repo=AssessmentSessionRepository(db),
+        recording_repo=AssessmentRecordingRepository(db),
+        transcript_repo=AssessmentTranscriptRepository(db),
+        analysis_repo=AssessmentAnalysisRepository(db),
+        communication_assessment_repo=CommunicationAssessmentRepository(db),
+        campaign_repo=CampaignRepository(db),
+        candidate_repo=CandidateRepository(db),
+    )
+
+
+AssessmentDashboardServiceDep = Annotated[
+    AssessmentDashboardService, Depends(get_assessment_dashboard_service)
+]
+
+
+def _content_disposition(filename: str) -> str:
+    """Build a Content-Disposition header value safe against header-injection
+    and non-ASCII filenames (RFC 5987 fallback via filename*). Mirrors
+    resumes.py's helper of the same name."""
+    from urllib.parse import quote
+
+    safe = re.sub(r"[\r\n\"]", "_", filename)
+    return f'attachment; filename="{safe}"; filename*=UTF-8\'\'{quote(filename)}'
 
 
 def get_assessment_session_service(
@@ -82,6 +116,26 @@ async def create_assessment_session(
 
 
 @router.get(
+    "/by-candidate/{candidate_id}",
+    response_model=AssessmentSessionResponse,
+    summary="Look up a candidate's assessment session for a campaign (read-only)",
+    responses={404: {"description": "Campaign, candidate, or assessment session not found."}},
+)
+async def get_assessment_session_by_candidate(
+    candidate_id: uuid.UUID,
+    campaign_id: uuid.UUID,
+    service: AssessmentDashboardServiceDep,
+    current_user: RecruiterUser,
+) -> AssessmentSessionResponse:
+    """Registered before GET /{id} so the literal 'by-candidate' segment isn't
+    swallowed by the {id}: UUID path parameter."""
+    assessment_session = await service.get_session_by_candidate(
+        candidate_id, campaign_id, current_user
+    )
+    return AssessmentSessionResponse.model_validate(assessment_session)
+
+
+@router.get(
     "/{id}",
     response_model=AssessmentSessionResponse,
     summary="Get an assessment session",
@@ -94,6 +148,44 @@ async def get_assessment_session(
 ) -> AssessmentSessionResponse:
     assessment_session = await service.get_session(id, current_user)
     return AssessmentSessionResponse.model_validate(assessment_session)
+
+
+@router.get(
+    "/{id}/full",
+    response_model=AssessmentSessionFullResponse,
+    summary="Get the full recruiter-facing assessment dashboard payload for a session",
+    responses={404: {"description": "Assessment session not found."}},
+)
+async def get_assessment_session_full(
+    id: uuid.UUID,
+    service: AssessmentDashboardServiceDep,
+    current_user: RecruiterUser,
+) -> AssessmentSessionFullResponse:
+    return await service.get_full(id, current_user)
+
+
+@router.get(
+    "/{id}/recordings/{recording_type}/download",
+    summary="Download a recording's audio bytes",
+    responses={
+        200: {"description": "Raw audio bytes with the recording's original MIME type."},
+        404: {"description": "Assessment session or recording not found."},
+    },
+)
+async def download_assessment_recording(
+    id: uuid.UUID,
+    recording_type: RecordingType,
+    service: AssessmentDashboardServiceDep,
+    storage: StorageDep,
+    current_user: RecruiterUser,
+) -> Response:
+    recording = await service.get_recording_audio(id, recording_type, current_user)
+    data = await storage.load(recording.storage_path)
+    return Response(
+        content=data,
+        media_type=recording.mime_type,
+        headers={"Content-Disposition": _content_disposition(recording.filename)},
+    )
 
 
 @router.patch(

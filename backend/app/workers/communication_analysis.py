@@ -26,6 +26,12 @@ mid-transaction.
 Idempotency      : An AssessmentTranscript whose analysis is already
                     COMPLETED is silently skipped. A retry re-fetches the
                     row and updates it in place.
+
+Once either task's Phase 3 commits, it fire-and-forget dispatches
+app.workers.communication_assessment.generate_communication_assessment for
+the transcript's owning session — that task itself waits until both sibling
+analyses are COMPLETED before scoring, so it's safe (and expected) for both
+analyze_read_aloud and analyze_listen_repeat to each trigger it independently.
 """
 
 import logging
@@ -33,6 +39,7 @@ import uuid
 from typing import Any
 
 from celery import Task
+from sqlalchemy import select
 
 from app.ai.communication.analysis_service import (
     ListenRepeatAnalysisService,
@@ -45,12 +52,18 @@ from app.ai.communication.config import (
 from app.ai.communication.exceptions import CommunicationAnalysisError
 from app.db.session import AsyncSessionLocal
 from app.models.assessment_analysis import AnalysisStatus, AnalysisType
+from app.models.assessment_recording import AssessmentRecording
 from app.models.assessment_transcript import AssessmentTranscript, TranscriptStatus
 from app.repositories.assessment_analysis import AssessmentAnalysisRepository
 from app.services.assessment_analysis import AssessmentAnalysisService
 from app.workers.celery_app import celery_app, run_task
+from app.workers.communication_assessment import generate_communication_assessment
 
 logger = logging.getLogger(__name__)
+
+
+def _enqueue_communication_assessment(assessment_session_id: str) -> None:
+    generate_communication_assessment.delay(assessment_session_id)
 
 
 # ── Core async implementation ─────────────────────────────────────────────────
@@ -62,10 +75,12 @@ async def _run_analyze_read_aloud(
     *,
     _session_factory: Any = None,
     _analysis_service: Any = None,
+    _assessment_dispatcher: Any = None,
 ) -> None:
     """Full Read Aloud analysis workflow. Accepts optional overrides for testability."""
     factory = _session_factory or AsyncSessionLocal
     analysis_service = _analysis_service or ReadAloudAnalysisService()
+    dispatch_assessment = _assessment_dispatcher or _enqueue_communication_assessment
     transcript_id = uuid.UUID(transcript_id_str)
     log_ctx = {"transcript_id": transcript_id_str}
 
@@ -91,6 +106,16 @@ async def _run_analyze_read_aloud(
             return
 
         logger.info("Task Started", extra={**log_ctx, "analysis_id": str(analysis.id)})
+
+        # Resolve the owning session so Phase 3 can dispatch the
+        # communication-assessment aggregation task by session id.
+        session_id_result = await session.execute(
+            select(AssessmentRecording.session_id).where(
+                AssessmentRecording.id == transcript.recording_id
+            )
+        )
+        assessment_session_id = session_id_result.scalar_one()
+
         await session.commit()
 
         # Capture scalars before the session closes (expire_on_commit=False preserves them)
@@ -124,6 +149,8 @@ async def _run_analyze_read_aloud(
             extra={**log_ctx, "overall_score": metrics.overall_score},
         )
 
+    dispatch_assessment(str(assessment_session_id))
+
 
 async def _run_analyze_listen_repeat(
     transcript_id_str: str,
@@ -131,10 +158,12 @@ async def _run_analyze_listen_repeat(
     *,
     _session_factory: Any = None,
     _analysis_service: Any = None,
+    _assessment_dispatcher: Any = None,
 ) -> None:
     """Full Listen & Repeat analysis workflow. Accepts optional overrides for testability."""
     factory = _session_factory or AsyncSessionLocal
     analysis_service = _analysis_service or ListenRepeatAnalysisService()
+    dispatch_assessment = _assessment_dispatcher or _enqueue_communication_assessment
     transcript_id = uuid.UUID(transcript_id_str)
     log_ctx = {"transcript_id": transcript_id_str}
 
@@ -162,6 +191,16 @@ async def _run_analyze_listen_repeat(
             return
 
         logger.info("Task Started", extra={**log_ctx, "analysis_id": str(analysis.id)})
+
+        # Resolve the owning session so Phase 3 can dispatch the
+        # communication-assessment aggregation task by session id.
+        session_id_result = await session.execute(
+            select(AssessmentRecording.session_id).where(
+                AssessmentRecording.id == transcript.recording_id
+            )
+        )
+        assessment_session_id = session_id_result.scalar_one()
+
         await session.commit()
 
         # Capture scalars before the session closes (expire_on_commit=False preserves them)
@@ -189,6 +228,8 @@ async def _run_analyze_listen_repeat(
             "Task Completed",
             extra={**log_ctx, "overall_score": metrics.overall_score},
         )
+
+    dispatch_assessment(str(assessment_session_id))
 
 
 async def _mark_failed(

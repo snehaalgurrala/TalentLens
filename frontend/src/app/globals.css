@@ -10,24 +10,26 @@
  * already resolves to a valid <color>; see the historical note this
  * replaced for why that matters).
  *
- * Every token below is derived ONLY from the 4 hues in the TalentSmart
- * logo — no other hue is used anywhere in this file:
- *   Blue        #1B5EA3  (the "TALENT" wordmark)
- *   Amber       #F5A623  (lighter half of the logo's swoosh gradient)
- *   Deep Orange #A8390A  (darkened shade of the same swoosh, for AA
- *                         contrast where amber-with-white-text fails)
- *   Navy-Purple #2A1B4D  (the dark swoosh)
+ * Every hue below is one of the 3 colors sampled from the TalentSmart logo
+ * — Blue (main), Green (secondary), Orange (third) — plus neutral gray/
+ * white/black for the page scaffold (background, borders, body text):
+ *   Blue        #1B5EA3  (the "TALENT" wordmark) — primary
+ *   Green       #1D4A28  (the dark half of the logo's swoosh) — secondary,
+ *                         and success (green already reads "success"
+ *                         universally, unlike the earlier misread hue)
+ *   Amber       #F5A623  (light half of the swoosh gradient) — warning
+ *   Deep Orange #A8500D / #A8390A (darker points along that same swoosh
+ *                         gradient) — accent / destructive respectively,
+ *                         since the logo has no red
  *   Gray        #7A7A7A  (the "smart" wordmark)
- * "success"/"destructive" reuse blue/orange instead of introducing
- * green/red — see the per-token notes below. Every fill+foreground pair
- * is contrast-checked against WCAG AA (4.5:1 text, 3:1 UI components);
- * see src/design-system/tokens/colors.ts for the literal hex mirror used
- * by Recharts and matching derivation notes.
+ * Every fill+foreground pair is contrast-checked against WCAG AA (4.5:1
+ * text, 3:1 UI components); see src/design-system/tokens/colors.ts for the
+ * literal hex mirror used by Recharts and matching derivation notes.
  */
 :root {
   --background: hsl(0 0% 98%); /* #FAFAFA */
   --surface: hsl(0 0% 100%); /* #FFFFFF */
-  --foreground: hsl(259 39% 10%); /* #150F22 — near-black, navy-purple-tinted */
+  --foreground: hsl(0 0% 10%); /* #1A1A1A — near-black, neutral (not brand-tinted) */
   --muted: hsl(0 0% 94%); /* #F0F0F0 */
   /* Logo gray (#7A7A7A) is only 4.29:1 vs this background — clears 3:1 for
      non-text UI (used below as --input) but not the 4.5:1 text minimum.
@@ -42,32 +44,34 @@
 
   --primary: hsl(210 72% 37%); /* #1B5EA3 — logo blue, 6.61:1 with white text */
   --primary-foreground: hsl(0 0% 100%);
-  --secondary: hsl(258 48% 20%); /* #2A1B4D — logo navy-purple, 15.4:1 with white text */
+  --secondary: hsl(135 44% 20%); /* #1D4A28 — logo green, 10.19:1 with white text */
   --secondary-foreground: hsl(0 0% 100%);
 
-  /* No green in the source palette — success reuses blue at a deeper,
-     more saturated lightness so it stays visually distinct from --primary. */
-  --success: hsl(209 74% 27%); /* #124676, 9.71:1 with white text */
+  /* Green is both --secondary and --success — same hue, same intent. */
+  --success: hsl(135 44% 20%); /* #1D4A28 */
   --success-foreground: hsl(0 0% 100%);
-  --success-emphasis: hsl(209 74% 27%); /* same value also clears 4.5:1 as text-on-tint */
+  --success-emphasis: hsl(135 44% 20%); /* same value also clears 4.5:1 as text-on-tint */
 
-  --accent-purple: hsl(258 48% 20%); /* #2A1B4D, same as secondary */
+  /* Token name kept for backward compat with existing component references
+     (badges, etc.) — value is now the logo's mid-tone orange, not purple. */
+  --accent-purple: hsl(26 86% 35%); /* #A8500D, 5.50:1 with white text */
   --accent-purple-foreground: hsl(0 0% 100%);
-  --accent-purple-emphasis: hsl(258 48% 20%); /* 15.4:1 as text — no lightening needed */
+  --accent-purple-emphasis: hsl(26 86% 35%);
 
   /* Generic hover/focus tint used by shadcn menu-style components. */
   --accent: hsl(0 0% 94%);
-  --accent-foreground: hsl(259 39% 10%);
+  --accent-foreground: hsl(0 0% 10%);
 
   --card: hsl(0 0% 100%);
-  --card-foreground: hsl(259 39% 10%);
+  --card-foreground: hsl(0 0% 10%);
   --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(259 39% 10%);
+  --popover-foreground: hsl(0 0% 10%);
 
   /* No red in the source palette — destructive reuses the swoosh's orange
-     hue, darkened toward its red-leaning end (#A8390A) rather than the
-     lighter amber, both to read as "alarming" and to clear 4.5:1 with
-     white text (the amber itself only manages 3.44:1 here). */
+     hue, darkened toward its red-leaning end (#A8390A, a different point
+     on the gradient than --accent-purple above) both to read as
+     "alarming" and to clear 4.5:1 with white text (the amber itself only
+     manages 3.44:1 here). */
   --destructive: hsl(18 89% 35%); /* #A8390A, 6.45:1 with white text */
   --destructive-foreground: hsl(0 0% 100%);
   --destructive-emphasis: hsl(18 89% 35%);
@@ -76,42 +80,42 @@
      issue as the deep-orange note above at the other end of the gradient)
      — pairs with dark text instead, like the original brand spec did. */
   --warning: hsl(37 91% 55%); /* #F5A623 — logo amber */
-  --warning-foreground: hsl(259 39% 10%); /* 9.22:1 */
+  --warning-foreground: hsl(0 0% 10%); /* 8.58:1 */
   --warning-emphasis: hsl(37 80% 30%); /* #8A5A0F darker amber for text-on-tint */
 
   --radius: 0.5rem;
 }
 
 .dark {
-  --background: hsl(256 44% 5%); /* #0A0712 — near-black navy-purple */
-  --surface: hsl(259 39% 10%); /* #150F22 */
+  --background: hsl(0 0% 6%); /* #0F0F0F — near-black, neutral */
+  --surface: hsl(0 0% 10%); /* #1A1A1A */
   --foreground: hsl(0 0% 95%); /* #F2F2F2 */
-  --muted: hsl(256 34% 15%); /* #201933 */
-  --muted-foreground: hsl(0 0% 66%); /* #A8A8A8, 8.39:1 vs background */
+  --muted: hsl(0 0% 16%); /* #292929 */
+  --muted-foreground: hsl(0 0% 66%); /* #A8A8A8 */
 
-  --border: hsl(256 34% 15%); /* #201933 */
+  --border: hsl(0 0% 16%); /* #292929 */
   --input: hsl(0 0% 54%); /* #8A8A8A, clears 3:1 with margin */
   --ring: hsl(210 64% 48%); /* = primary */
 
   --primary: hsl(210 64% 48%); /* #2C7BC9, lightened for contrast against dark bg */
   --primary-foreground: hsl(0 0% 100%);
-  --secondary: hsl(255 35% 35%); /* #4A3A78, lightened navy-purple */
+  --secondary: hsl(137 45% 33%); /* #2E7A44, lightened green */
   --secondary-foreground: hsl(0 0% 100%);
 
-  --success: hsl(210 71% 42%); /* #1F6BB5 */
+  --success: hsl(137 45% 33%); /* #2E7A44 */
   --success-foreground: hsl(0 0% 100%);
-  --success-emphasis: hsl(209 61% 65%); /* #6FA8DC, lightened for text-on-tint */
+  --success-emphasis: hsl(135 50% 55%); /* lightened for text-on-tint */
 
-  --accent-purple: hsl(260 34% 47%); /* #6A4FA0 */
+  --accent-purple: hsl(28 83% 36%); /* #A85610 */
   --accent-purple-foreground: hsl(0 0% 100%);
-  --accent-purple-emphasis: hsl(261 46% 74%); /* #B39DDB, lightened for text-on-tint */
+  --accent-purple-emphasis: hsl(30 85% 65%); /* lightened for text-on-tint */
 
-  --accent: hsl(256 34% 15%);
+  --accent: hsl(0 0% 16%);
   --accent-foreground: hsl(0 0% 95%);
 
-  --card: hsl(259 39% 10%);
+  --card: hsl(0 0% 10%);
   --card-foreground: hsl(0 0% 95%);
-  --popover: hsl(259 39% 10%);
+  --popover: hsl(0 0% 10%);
   --popover-foreground: hsl(0 0% 95%);
 
   --destructive: hsl(19 83% 42%); /* #C24A12, lightened deep-orange */
@@ -119,7 +123,7 @@
   --destructive-emphasis: hsl(22 77% 60%); /* #E8834A, lightened for text-on-tint */
 
   --warning: hsl(37 91% 55%); /* unchanged — self-contained fill color */
-  --warning-foreground: hsl(259 39% 10%); /* unchanged, theme-independent */
+  --warning-foreground: hsl(0 0% 10%); /* unchanged, theme-independent */
   --warning-emphasis: hsl(38 95% 70%); /* #FBC468 */
 }
 
@@ -203,11 +207,11 @@
   --text-caption--line-height: 1.5;
   --text-caption--font-weight: 400;
 
-  /* Elevation scale — brand-tinted (navy-purple, matches --foreground) instead of pure black. */
-  --shadow-elevation-1: 0 1px 2px 0 rgb(21 15 34 / 0.06);
-  --shadow-elevation-2: 0 2px 8px -2px rgb(21 15 34 / 0.1), 0 1px 2px -1px rgb(21 15 34 / 0.06);
-  --shadow-elevation-3: 0 8px 24px -4px rgb(21 15 34 / 0.12), 0 2px 6px -2px rgb(21 15 34 / 0.06);
-  --shadow-elevation-4: 0 16px 40px -8px rgb(21 15 34 / 0.16), 0 4px 10px -2px rgb(21 15 34 / 0.08);
+  /* Elevation scale — neutral black, matching the now brand-neutral --foreground. */
+  --shadow-elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.06);
+  --shadow-elevation-2: 0 2px 8px -2px rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-elevation-3: 0 8px 24px -4px rgb(0 0 0 / 0.12), 0 2px 6px -2px rgb(0 0 0 / 0.06);
+  --shadow-elevation-4: 0 16px 40px -8px rgb(0 0 0 / 0.16), 0 4px 10px -2px rgb(0 0 0 / 0.08);
 
   --z-dropdown: 1000;
   --z-sticky: 1100;

@@ -9,26 +9,27 @@
  * If brand colors change, update both this file and globals.css — the two
  * are intentionally kept in sync rather than one deriving from the other.
  *
- * Every value below derives from exactly 4 hues taken from the TalentSmart
- * logo — no other hue appears anywhere in this palette:
- *   Blue #1B5EA3 (wordmark) · Amber #F5A623 / Deep Orange #A8390A (swoosh
- *   gradient, split into two shades for AA contrast) · Navy-Purple #2A1B4D
- *   (swoosh) · Gray #7A7A7A ("smart" wordmark). There is no green or red in
- *   the source palette, so `success` reuses a deeper blue and `destructive`
- *   reuses the swoosh's darker orange instead — see globals.css for the
- *   per-token contrast notes (WCAG AA: 4.5:1 text, 3:1 UI components).
+ * Every hue below is one of the 3 colors sampled from the TalentSmart logo
+ * — Blue #1B5EA3 (main), Green #1D4A28 (secondary), Orange (third, split
+ * into #A8500D/#A8390A for AA contrast at different roles) — plus neutral
+ * gray/white/black for background/border/text. There is no red in the
+ * source palette, so `destructive` reuses the darker end of the orange
+ * gradient instead. `accentPurple` keeps its historical name (many
+ * components already reference `bg-accent-purple`) but is now the logo's
+ * orange, not purple — see globals.css for the per-token contrast notes
+ * (WCAG AA: 4.5:1 text, 3:1 UI components).
  */
 
 export const brandColors = {
   primary: "#1B5EA3",
-  secondary: "#2A1B4D",
-  accentPurple: "#2A1B4D",
-  success: "#124676",
+  secondary: "#1D4A28",
+  accentPurple: "#A8500D",
+  success: "#1D4A28",
   warning: "#F5A623",
   destructive: "#A8390A",
   background: "#FAFAFA",
   surface: "#FFFFFF",
-  textPrimary: "#150F22",
+  textPrimary: "#1A1A1A",
   textSecondary: "#6B6B6B",
   border: "#E0E0E0",
 } as const;
@@ -43,16 +44,16 @@ export const brandColors = {
  */
 export const brandColorsDark = {
   primary: "#2C7BC9",
-  secondary: "#4A3A78",
-  accentPurple: "#6A4FA0",
-  success: "#1F6BB5",
+  secondary: "#2E7A44",
+  accentPurple: "#A85610",
+  success: "#2E7A44",
   warning: "#F5A623",
   destructive: "#C24A12",
-  background: "#0A0712",
-  surface: "#150F22",
+  background: "#0F0F0F",
+  surface: "#1A1A1A",
   textPrimary: "#F2F2F2",
   textSecondary: "#A8A8A8",
-  border: "#201933",
+  border: "#292929",
 } as const;
 
 export type BrandColorKey = keyof typeof brandColors;

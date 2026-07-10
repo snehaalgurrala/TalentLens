@@ -3,25 +3,24 @@ import type { CSSProperties } from "react"
 import { brandColors, brandColorsDark } from "@/design-system/tokens/colors"
 
 /**
- * Ordered series palette for multi-series charts (bar/line/pie). The brand
- * only has 2 truly distinct hue families (blue, navy-purple) plus orange
- * and neutral gray — `secondary`/`accentPurple` share one hex (see
- * colors.ts), so building this from those 4 semantic tokens directly would
- * put two indistinguishable purples back to back. Uses all 4 source hues
- * instead — blue, amber, navy-purple, mid-gray — the last as a deliberately
- * muted 4th/"other" series, a standard categorical-plus-neutral pattern.
+ * Ordered series palette for multi-series charts (bar/line/pie). Uses the
+ * brand's 3 real hue families — blue, green, orange — plus mid-gray as a
+ * deliberately muted 4th/"other" series (a standard categorical-plus-
+ * neutral pattern). `secondary` and `success` share one hex (both = green,
+ * see colors.ts), so this pulls `secondary` rather than listing the same
+ * green twice.
  */
 export const chartPalette = [
   brandColors.primary,
+  brandColors.secondary,
   brandColors.warning,
-  brandColors.accentPurple,
   "#7A7A7A",
 ] as const
 
 export const chartPaletteDark = [
   brandColorsDark.primary,
+  brandColorsDark.secondary,
   brandColorsDark.warning,
-  brandColorsDark.accentPurple,
   "#A8A8A8",
 ] as const
 

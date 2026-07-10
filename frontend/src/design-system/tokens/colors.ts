@@ -8,42 +8,51 @@
  *
  * If brand colors change, update both this file and globals.css — the two
  * are intentionally kept in sync rather than one deriving from the other.
+ *
+ * Every value below derives from exactly 4 hues taken from the TalentSmart
+ * logo — no other hue appears anywhere in this palette:
+ *   Blue #1B5EA3 (wordmark) · Amber #F5A623 / Deep Orange #A8390A (swoosh
+ *   gradient, split into two shades for AA contrast) · Navy-Purple #2A1B4D
+ *   (swoosh) · Gray #7A7A7A ("smart" wordmark). There is no green or red in
+ *   the source palette, so `success` reuses a deeper blue and `destructive`
+ *   reuses the swoosh's darker orange instead — see globals.css for the
+ *   per-token contrast notes (WCAG AA: 4.5:1 text, 3:1 UI components).
  */
 
 export const brandColors = {
-  primaryBlue: "#005A9C",
-  secondaryBlue: "#1E74B7",
-  greenAccent: "#37B34A",
-  deepPurple: "#3A1545",
-  background: "#F7F9FC",
+  primary: "#1B5EA3",
+  secondary: "#2A1B4D",
+  accentPurple: "#2A1B4D",
+  success: "#124676",
+  warning: "#F5A623",
+  destructive: "#A8390A",
+  background: "#FAFAFA",
   surface: "#FFFFFF",
-  textPrimary: "#1F2937",
-  textSecondary: "#6B7280",
-  border: "#E5E7EB",
-  destructive: "#DC2828",
-  warning: "#F59F0A",
+  textPrimary: "#150F22",
+  textSecondary: "#6B6B6B",
+  border: "#E0E0E0",
 } as const;
 
 /**
  * Dark-mode counterparts, contrast-adjusted (lightened) from the light-mode
  * hues so they remain legible against a dark background — not literal
- * reuses of the light-mode hex. Verified against WCAG AA:
- *  - white text on primaryBlue/secondaryBlue/destructive: >= 4.5:1
- *  - dark text on greenAccent/warning: >= 7:1 (matches the light-mode
- *    pairing, since both fail AA with white text at full saturation)
+ * reuses of the light-mode hex. Directionally verified against WCAG AA the
+ * same way as the light-mode set (see globals.css); primary/secondary/
+ * accentPurple share the same known limitation documented there (fill role
+ * prioritized over small-text role).
  */
 export const brandColorsDark = {
-  primaryBlue: "#0A75C2",
-  secondaryBlue: "#1577C1",
-  greenAccent: "#4EBC5E",
-  deepPurple: "#8E3FA6",
-  background: "#0E121B",
-  surface: "#171C26",
-  textPrimary: "#E7EBEF",
-  textSecondary: "#98A4B3",
-  border: "#2D3543",
-  destructive: "#BD2828",
-  warning: "#F0B042",
+  primary: "#2C7BC9",
+  secondary: "#4A3A78",
+  accentPurple: "#6A4FA0",
+  success: "#1F6BB5",
+  warning: "#F5A623",
+  destructive: "#C24A12",
+  background: "#0A0712",
+  surface: "#150F22",
+  textPrimary: "#F2F2F2",
+  textSecondary: "#A8A8A8",
+  border: "#201933",
 } as const;
 
 export type BrandColorKey = keyof typeof brandColors;

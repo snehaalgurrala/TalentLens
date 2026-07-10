@@ -76,6 +76,13 @@ def reset_model_cache() -> None:
         _model_name = None
 
 
+def is_loaded() -> bool:
+    """For System Health reporting — the model loads lazily on first
+    transcription request, so "not loaded" is a normal, expected state, not
+    an error."""
+    return _model is not None
+
+
 class WhisperService:
     """
     Thin, synchronous wrapper around a loaded Whisper model. Callers run
@@ -100,7 +107,27 @@ class WhisperService:
         )
         started = time.monotonic()
         try:
-            result = model.transcribe(audio_path)
+            result = model.transcribe(
+                audio_path,
+                language="en",
+                task="transcribe",
+                # A single float (not Whisper's default fallback tuple of
+                # rising temperatures) disables temperature-fallback retries,
+                # so every run of the same audio decodes identically.
+                temperature=0.0,
+                beam_size=5,
+                best_of=5,
+                # Every recording here is one isolated sentence (Read Aloud /
+                # Listen & Repeat) — carrying decoding context from a
+                # previous segment into the next only risks compounding a
+                # misheard word instead of helping.
+                condition_on_previous_text=False,
+                # fp16 is a no-op on CPU (Whisper silently falls back to
+                # fp32 with a warning); being explicit avoids that warning
+                # and lets a GPU deployment (WHISPER_DEVICE=cuda) get real
+                # fp16 speed.
+                fp16=self.device != "cpu",
+            )
         except Exception as exc:
             logger.error(
                 "Transcription failed", extra={"model": self.model_name, "error": str(exc)}

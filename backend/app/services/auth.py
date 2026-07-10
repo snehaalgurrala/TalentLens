@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime
 
 import jwt
-from fastapi import HTTPException, status
+from fastapi import HTTPException, Request, status
 
 from app.core.security import (
     create_access_token,
@@ -16,6 +16,7 @@ from app.models.organization_invitation import InvitationStatus
 from app.models.user import User, UserRole
 from app.repositories.organization_invitation import OrganizationInvitationRepository
 from app.repositories.user import UserRepository
+from app.repositories.user_session import UserSessionRepository
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 
 
@@ -24,28 +25,49 @@ class AuthService:
         self,
         user_repo: UserRepository,
         invitation_repo: OrganizationInvitationRepository,
+        session_repo: UserSessionRepository,
     ) -> None:
         self.user_repo = user_repo
         self.invitation_repo = invitation_repo
+        self.session_repo = session_repo
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
-    def _make_tokens(self, user: User) -> TokenResponse:
+    async def _issue_session(
+        self, user: User, request: Request | None
+    ) -> TokenResponse:
+        """Creates a new UserSession row and a token pair carrying its id as
+        `sid`, and (dual-write, see the plan's rollout note) keeps the legacy
+        User.refresh_token_hash column in sync too, so any code still reading
+        it during the transition period keeps working."""
+        session_id = uuid.uuid4()
         access = create_access_token(
             user_id=str(user.id),
             role=user.role.value,
             org_id=str(user.org_id) if user.org_id else None,
+            session_id=str(session_id),
         )
-        refresh = create_refresh_token(str(user.id))
-        return TokenResponse(access_token=access, refresh_token=refresh)
+        refresh = create_refresh_token(str(user.id), session_id=str(session_id))
+        tokens = TokenResponse(access_token=access, refresh_token=refresh)
 
-    async def _rotate_refresh_token(self, user: User, tokens: TokenResponse) -> None:
-        """Replace the stored refresh-token hash with the newly issued one."""
+        user_agent = request.headers.get("user-agent") if request else None
+        ip_address = request.client.host if request and request.client else None
+        await self.session_repo.create(
+            id=session_id,
+            user_id=user.id,
+            refresh_token_hash=hash_token(tokens.refresh_token),
+            device_label=(user_agent[:255] if user_agent else None),
+            user_agent=user_agent,
+            ip_address=ip_address,
+        )
         await self.user_repo.set_refresh_token_hash(user.id, hash_token(tokens.refresh_token))
+        return tokens
 
     # ── Public methods ────────────────────────────────────────────────────────
 
-    async def register(self, data: RegisterRequest) -> tuple[User, TokenResponse]:
+    async def register(
+        self, data: RegisterRequest, request: Request | None = None
+    ) -> tuple[User, TokenResponse]:
         email = data.email.lower().strip()
 
         invalid_invitation = HTTPException(
@@ -80,11 +102,12 @@ class AuthService:
             status=InvitationStatus.ACCEPTED,
             accepted_at=datetime.now(UTC),
         )
-        tokens = self._make_tokens(user)
-        await self._rotate_refresh_token(user, tokens)
+        tokens = await self._issue_session(user, request)
         return user, tokens
 
-    async def login(self, data: LoginRequest) -> tuple[User, TokenResponse]:
+    async def login(
+        self, data: LoginRequest, request: Request | None = None
+    ) -> tuple[User, TokenResponse]:
         email = data.email.lower().strip()
         user = await self.user_repo.get_by_email(email)
 
@@ -100,11 +123,10 @@ class AuthService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="This account has been deactivated.",
             )
-        tokens = self._make_tokens(user)
-        await self._rotate_refresh_token(user, tokens)
+        tokens = await self._issue_session(user, request)
         return user, tokens
 
-    async def refresh(self, refresh_token: str) -> TokenResponse:
+    async def refresh(self, refresh_token: str, request: Request | None = None) -> TokenResponse:
         _invalid = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token.",
@@ -122,10 +144,33 @@ class AuthService:
         if not user or not user.is_active:
             raise _invalid
 
-        # Reject if the token doesn't match the stored hash (already rotated / logged out)
-        if not user.refresh_token_hash or user.refresh_token_hash != hash_token(refresh_token):
-            raise _invalid
+        token_hash = hash_token(refresh_token)
+        session = await self.session_repo.get_by_refresh_token_hash(token_hash)
+        if session is not None:
+            if session.revoked_at is not None or session.user_id != user.id:
+                raise _invalid
+            await self.session_repo.revoke(session)
+        else:
+            # Self-heal: a token issued before session tracking existed, or
+            # whose UserSession row is otherwise missing. Fall back to the
+            # legacy column so pre-existing sessions aren't force-logged-out
+            # by this rollout.
+            if not user.refresh_token_hash or user.refresh_token_hash != token_hash:
+                raise _invalid
 
-        tokens = self._make_tokens(user)
-        await self._rotate_refresh_token(user, tokens)
-        return tokens
+        return await self._issue_session(user, request)
+
+    async def logout(self, refresh_token: str) -> None:
+        """Best-effort: an already-invalid/expired token still results in a
+        204 — logout should never fail loudly just because the token being
+        discarded is already unusable."""
+        try:
+            payload = decode_token(refresh_token)
+            if payload.get("type") != "refresh":
+                return
+        except jwt.InvalidTokenError:
+            return
+
+        session = await self.session_repo.get_by_refresh_token_hash(hash_token(refresh_token))
+        if session is not None and session.revoked_at is None:
+            await self.session_repo.revoke(session)

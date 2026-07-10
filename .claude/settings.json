@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(docker compose *)",
+      "Bash(timeout 40 bash -c 'until curl -sf http://localhost:8000/health >/dev/null; do sleep 1; done')",
+      "Bash(docker exec *)"
     ]
   }
 }

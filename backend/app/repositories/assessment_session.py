@@ -3,6 +3,7 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.models.assessment_session import AssessmentSession
 
@@ -31,6 +32,23 @@ class AssessmentSessionRepository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def list_by_org(
+        self, org_id: uuid.UUID, campaign_id: uuid.UUID | None = None
+    ) -> list[AssessmentSession]:
+        """Eager-loads candidate/campaign (both lazy="raise" on the model) so
+        callers can read session.candidate/session.campaign without a
+        separate lookup per row."""
+        query = (
+            select(AssessmentSession)
+            .options(joinedload(AssessmentSession.candidate), joinedload(AssessmentSession.campaign))
+            .where(AssessmentSession.org_id == org_id)
+        )
+        if campaign_id is not None:
+            query = query.where(AssessmentSession.campaign_id == campaign_id)
+        query = query.order_by(AssessmentSession.started_at.desc())
+        result = await self.session.execute(query)
+        return list(result.scalars().unique().all())
 
     async def create(self, **kwargs: Any) -> AssessmentSession:
         assessment_session = AssessmentSession(**kwargs)

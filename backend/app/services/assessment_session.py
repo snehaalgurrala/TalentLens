@@ -2,9 +2,12 @@
 attempt (aptitude answers + read-aloud/listen-repeat recording metadata).
 
 No AI, no transcription, no scoring, no Celery: this sprint only creates,
-resumes, updates progress on, and completes a session. Recruiter-authenticated
-only (RequireRoles) — there is no candidate-facing invitation/token flow yet,
-so every call here is made on a candidate's behalf by an org member, same
+resumes, updates progress on, and completes a session. Every method takes
+either a recruiter/admin `User` (RequireRoles, org-scoped via `_require_org`)
+or, for `upload_recording` only, a bare `org_id` — the one call the candidate's
+own browser makes directly, authorized instead via their invitation token (see
+`assessment_sessions.py`'s `resolve_recording_upload_org_id`), since candidates
+have no platform account. Every other method here stays recruiter-only, same
 access model as candidate_profile.py's notes/tasks/activity endpoints.
 """
 
@@ -92,14 +95,16 @@ class AssessmentSessionService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found."
             )
 
-    async def _get_session(self, session_id: uuid.UUID, user: User) -> AssessmentSession:
-        org_id = self._require_org(user)
+    async def _get_session(self, session_id: uuid.UUID, org_id: uuid.UUID) -> AssessmentSession:
         assessment_session = await self.session_repo.get_by_id(session_id, org_id)
         if assessment_session is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Assessment session not found."
             )
         return assessment_session
+
+    async def _get_session_for_user(self, session_id: uuid.UUID, user: User) -> AssessmentSession:
+        return await self._get_session(session_id, self._require_org(user))
 
     def _assert_not_completed(self, assessment_session: AssessmentSession) -> None:
         if assessment_session.status == AssessmentSessionStatus.COMPLETED:
@@ -163,12 +168,12 @@ class AssessmentSessionService:
         )
 
     async def get_session(self, session_id: uuid.UUID, user: User) -> AssessmentSession:
-        return await self._get_session(session_id, user)
+        return await self._get_session_for_user(session_id, user)
 
     async def update_progress(
         self, session_id: uuid.UUID, data: AssessmentSessionProgressUpdate, user: User
     ) -> AssessmentSession:
-        assessment_session = await self._get_session(session_id, user)
+        assessment_session = await self._get_session_for_user(session_id, user)
         self._assert_not_completed(assessment_session)
         fields = data.model_dump(exclude_unset=True)
         if not fields:
@@ -178,7 +183,7 @@ class AssessmentSessionService:
     async def save_answer(
         self, session_id: uuid.UUID, data: AssessmentAnswerCreate, user: User
     ) -> AssessmentAnswer:
-        assessment_session = await self._get_session(session_id, user)
+        assessment_session = await self._get_session_for_user(session_id, user)
         self._assert_not_completed(assessment_session)
         return await self.answer_repo.upsert(
             assessment_session.id, data.question_number, data.answer
@@ -187,7 +192,7 @@ class AssessmentSessionService:
     async def save_recording(
         self, session_id: uuid.UUID, data: AssessmentRecordingCreate, user: User
     ) -> AssessmentRecording:
-        assessment_session = await self._get_session(session_id, user)
+        assessment_session = await self._get_session_for_user(session_id, user)
         self._assert_not_completed(assessment_session)
 
         # Relative, storage-backend-agnostic path; no bytes are written here —
@@ -217,9 +222,9 @@ class AssessmentSessionService:
         recording_type: RecordingType,
         file: UploadFile,
         duration_seconds: float,
-        user: User,
+        org_id: uuid.UUID,
     ) -> AssessmentRecording:
-        assessment_session = await self._get_session(session_id, user)
+        assessment_session = await self._get_session(session_id, org_id)
         self._assert_not_completed(assessment_session)
 
         mime_type = self._validate_recording_mime_type(file.content_type or "")
@@ -280,7 +285,7 @@ class AssessmentSessionService:
         return recording
 
     async def complete_session(self, session_id: uuid.UUID, user: User) -> AssessmentSession:
-        assessment_session = await self._get_session(session_id, user)
+        assessment_session = await self._get_session_for_user(session_id, user)
         if assessment_session.status == AssessmentSessionStatus.COMPLETED:
             return assessment_session
         return await self.session_repo.update(

@@ -24,6 +24,8 @@ export interface CandidatesTableProps {
   sortKey?: string
   sortDirection?: "asc" | "desc"
   onSortChange: (key: string) => void
+  /** Passed through to each row's CandidateActionsMenu for "Send Assessment". */
+  campaignId: string
 }
 
 function SkillsCell({ skills }: { skills: string[] }) {
@@ -69,6 +71,7 @@ function CandidatesTable({
   sortKey,
   sortDirection,
   onSortChange,
+  campaignId,
 }: CandidatesTableProps) {
   const allSelected = candidates.length > 0 && candidates.every((c) => selectedIds.has(c.resume_file_id))
 
@@ -200,7 +203,7 @@ function CandidatesTable({
       align: "right",
       render: (candidate) => (
         <div onClick={(event) => event.stopPropagation()}>
-          <CandidateActionsMenu candidate={candidate} onEditNotes={onEditNotes} />
+          <CandidateActionsMenu candidate={candidate} onEditNotes={onEditNotes} campaignId={campaignId} />
         </div>
       ),
     },

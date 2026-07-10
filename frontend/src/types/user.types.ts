@@ -17,3 +17,22 @@ export interface UserSummary {
   email: string
   role: UserRole
 }
+
+export interface UserProfileUpdate {
+  full_name?: string
+}
+
+export interface ChangePasswordRequest {
+  current_password: string
+  new_password: string
+}
+
+/** Row shape for the Settings > Users admin table (GET /users). */
+export interface UserListItem {
+  id: string
+  full_name: string
+  email: string
+  role: UserRole
+  is_active: boolean
+  created_at: string
+}

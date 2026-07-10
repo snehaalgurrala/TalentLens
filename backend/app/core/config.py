@@ -1,8 +1,8 @@
-from typing import Any
+from typing import Annotated, Any
 from urllib.parse import quote
 
 from pydantic import field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -18,11 +18,19 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     PROJECT_NAME: str = "TalentLens"
     VERSION: str = "0.1.0"
+    # Set via CI env var in real deployments (e.g. the CI run number or git
+    # SHA); "dev" is an honest default for local/uninstrumented environments
+    # rather than a fabricated value.
+    BUILD_NUMBER: str = "dev"
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
 
     # ── CORS ──────────────────────────────────────────────────
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
+    # NoDecode: pydantic-settings otherwise auto-JSON-decodes any list-typed
+    # field sourced from an env var/.env, which crashes SettingsError on a
+    # plain comma-separated value — it never reaches parse_cors_origins
+    # below. NoDecode hands the raw string straight to that validator.
+    ALLOWED_ORIGINS: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
 
     # ── PostgreSQL ────────────────────────────────────────────
     DATABASE_URL: str | None = None
@@ -64,7 +72,11 @@ class Settings(BaseSettings):
     LOCAL_EMBEDDING_MAX_INPUT_CHARS: int = 8000
 
     # ── Speech AI — local Whisper transcription (no external API calls) ──
-    WHISPER_MODEL_NAME: str = "base"
+    # "small" trades ~2-3x CPU time for a meaningfully lower word-error-rate
+    # than "base" (see docs/phase5-speech-transcription-optimization.md) —
+    # acceptable here since transcription runs out-of-band in a Celery
+    # worker, never blocking the candidate or recruiter UI.
+    WHISPER_MODEL_NAME: str = "small"
     WHISPER_DEVICE: str = "cpu"
     WHISPER_MODEL_CACHE_DIR: str | None = None
     WHISPER_MAX_AUDIO_SIZE_MB: int = 25
@@ -89,6 +101,22 @@ class Settings(BaseSettings):
         "Innovation distinguishes between a leader and a follower in every "
         "industry we serve."
     )
+
+    # ── Frontend (for building candidate-facing links, e.g. invitation emails) ──
+    FRONTEND_BASE_URL: str = "http://localhost:3000"
+
+    # ── Email (SMTP) — assessment invitation delivery ─────────────────────
+    # See app/services/email/ for the provider abstraction; SMTP is the only
+    # implementation today but SendGrid/SES/Azure can be added as sibling
+    # EmailProvider implementations without touching AssessmentInvitationService.
+    SMTP_HOST: str = "localhost"
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "no-reply@talentlens.io"
+    SMTP_FROM_NAME: str = "TalentLens"
+    SMTP_TLS: bool = True
+    SMTP_SSL: bool = False
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod

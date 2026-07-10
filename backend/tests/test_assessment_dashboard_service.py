@@ -150,6 +150,32 @@ def make_communication_assessment(**overrides) -> CommunicationAssessment:
     return CommunicationAssessment(**defaults)
 
 
+def make_campaign(**overrides) -> MagicMock:
+    defaults = dict(id=uuid.uuid4(), title="Frontend Engineer")
+    defaults.update(overrides)
+    campaign = MagicMock()
+    campaign.id = defaults["id"]
+    campaign.title = defaults["title"]
+    return campaign
+
+
+def make_candidate(**overrides) -> MagicMock:
+    defaults = dict(id=uuid.uuid4(), first_name="Jane", last_name="Doe", email="jane@example.com")
+    defaults.update(overrides)
+    candidate = MagicMock()
+    candidate.id = defaults["id"]
+    candidate.first_name = defaults["first_name"]
+    candidate.last_name = defaults["last_name"]
+    candidate.email = defaults["email"]
+    return candidate
+
+
+def _default_resume_file_repo() -> MagicMock:
+    repo = MagicMock()
+    repo.get_by_candidate_and_campaign = AsyncMock(return_value=None)
+    return repo
+
+
 def make_service(**repo_overrides) -> AssessmentDashboardService:
     defaults = dict(
         session_repo=MagicMock(),
@@ -159,6 +185,7 @@ def make_service(**repo_overrides) -> AssessmentDashboardService:
         communication_assessment_repo=MagicMock(),
         campaign_repo=MagicMock(),
         candidate_repo=MagicMock(),
+        resume_file_repo=_default_resume_file_repo(),
     )
     defaults.update(repo_overrides)
     return AssessmentDashboardService(**defaults)
@@ -185,17 +212,98 @@ class TestGetFull:
         recording_repo.list_by_session = AsyncMock(return_value=[])
         communication_assessment_repo = MagicMock()
         communication_assessment_repo.get_by_session_id = AsyncMock(return_value=None)
+        campaign_repo = MagicMock()
+        campaign_repo.get_by_id = AsyncMock(return_value=make_campaign(id=session.campaign_id))
+        candidate_repo = MagicMock()
+        candidate_repo.get_by_id_and_org = AsyncMock(
+            return_value=make_candidate(id=session.candidate_id)
+        )
         service = make_service(
             session_repo=session_repo,
             recording_repo=recording_repo,
             communication_assessment_repo=communication_assessment_repo,
+            campaign_repo=campaign_repo,
+            candidate_repo=candidate_repo,
         )
 
         result = await service.get_full(session.id, make_user())
 
         assert result.session.id == session.id
+        assert result.candidate.id == session.candidate_id
+        assert result.campaign.id == session.campaign_id
         assert result.recordings == []
         assert result.communication_assessment is None
+        assert result.pipeline_stage is None
+
+    async def test_includes_pipeline_stage_when_resume_file_exists(self):
+        from app.models.resume_file import PipelineStage
+
+        session = make_session()
+        session_repo = MagicMock()
+        session_repo.get_by_id = AsyncMock(return_value=session)
+        recording_repo = MagicMock()
+        recording_repo.list_by_session = AsyncMock(return_value=[])
+        communication_assessment_repo = MagicMock()
+        communication_assessment_repo.get_by_session_id = AsyncMock(return_value=None)
+        campaign_repo = MagicMock()
+        campaign_repo.get_by_id = AsyncMock(return_value=make_campaign(id=session.campaign_id))
+        candidate_repo = MagicMock()
+        candidate_repo.get_by_id_and_org = AsyncMock(
+            return_value=make_candidate(id=session.candidate_id)
+        )
+        resume_file = MagicMock()
+        resume_file.pipeline_stage = PipelineStage.ASSESSMENT_IN_PROGRESS
+        resume_file_repo = MagicMock()
+        resume_file_repo.get_by_candidate_and_campaign = AsyncMock(return_value=resume_file)
+        service = make_service(
+            session_repo=session_repo,
+            recording_repo=recording_repo,
+            communication_assessment_repo=communication_assessment_repo,
+            campaign_repo=campaign_repo,
+            candidate_repo=candidate_repo,
+            resume_file_repo=resume_file_repo,
+        )
+
+        result = await service.get_full(session.id, make_user())
+
+        assert result.pipeline_stage == PipelineStage.ASSESSMENT_IN_PROGRESS
+        resume_file_repo.get_by_candidate_and_campaign.assert_awaited_once_with(
+            session.candidate_id, session.campaign_id
+        )
+
+    async def test_campaign_not_found_raises_404(self):
+        session = make_session()
+        session_repo = MagicMock()
+        session_repo.get_by_id = AsyncMock(return_value=session)
+        campaign_repo = MagicMock()
+        campaign_repo.get_by_id = AsyncMock(return_value=None)
+        candidate_repo = MagicMock()
+        candidate_repo.get_by_id_and_org = AsyncMock(
+            return_value=make_candidate(id=session.candidate_id)
+        )
+        service = make_service(
+            session_repo=session_repo, campaign_repo=campaign_repo, candidate_repo=candidate_repo
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.get_full(session.id, make_user())
+        assert exc_info.value.status_code == 404
+
+    async def test_candidate_not_found_raises_404(self):
+        session = make_session()
+        session_repo = MagicMock()
+        session_repo.get_by_id = AsyncMock(return_value=session)
+        campaign_repo = MagicMock()
+        campaign_repo.get_by_id = AsyncMock(return_value=make_campaign(id=session.campaign_id))
+        candidate_repo = MagicMock()
+        candidate_repo.get_by_id_and_org = AsyncMock(return_value=None)
+        service = make_service(
+            session_repo=session_repo, campaign_repo=campaign_repo, candidate_repo=candidate_repo
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await service.get_full(session.id, make_user())
+        assert exc_info.value.status_code == 404
 
     async def test_full_chain_recording_transcript_analysis(self):
         session = make_session()
@@ -214,6 +322,12 @@ class TestGetFull:
         analysis_repo.get_by_transcript_id = AsyncMock(return_value=analysis)
         communication_assessment_repo = MagicMock()
         communication_assessment_repo.get_by_session_id = AsyncMock(return_value=comm_assessment)
+        campaign_repo = MagicMock()
+        campaign_repo.get_by_id = AsyncMock(return_value=make_campaign(id=session.campaign_id))
+        candidate_repo = MagicMock()
+        candidate_repo.get_by_id_and_org = AsyncMock(
+            return_value=make_candidate(id=session.candidate_id)
+        )
 
         service = make_service(
             session_repo=session_repo,
@@ -221,6 +335,8 @@ class TestGetFull:
             transcript_repo=transcript_repo,
             analysis_repo=analysis_repo,
             communication_assessment_repo=communication_assessment_repo,
+            campaign_repo=campaign_repo,
+            candidate_repo=candidate_repo,
         )
 
         result = await service.get_full(session.id, make_user())
@@ -247,6 +363,12 @@ class TestGetFull:
         analysis_repo.get_by_transcript_id = AsyncMock()
         communication_assessment_repo = MagicMock()
         communication_assessment_repo.get_by_session_id = AsyncMock(return_value=None)
+        campaign_repo = MagicMock()
+        campaign_repo.get_by_id = AsyncMock(return_value=make_campaign(id=session.campaign_id))
+        candidate_repo = MagicMock()
+        candidate_repo.get_by_id_and_org = AsyncMock(
+            return_value=make_candidate(id=session.candidate_id)
+        )
 
         service = make_service(
             session_repo=session_repo,
@@ -254,6 +376,8 @@ class TestGetFull:
             transcript_repo=transcript_repo,
             analysis_repo=analysis_repo,
             communication_assessment_repo=communication_assessment_repo,
+            campaign_repo=campaign_repo,
+            candidate_repo=candidate_repo,
         )
 
         result = await service.get_full(session.id, make_user())
@@ -262,6 +386,102 @@ class TestGetFull:
         assert detail.transcript is None
         assert detail.analysis is None
         analysis_repo.get_by_transcript_id.assert_not_called()
+
+
+# ── list_sessions ─────────────────────────────────────────────────────────────
+
+
+class TestListSessions:
+    def _make_session_with_relations(self, **overrides) -> AssessmentSession:
+        campaign = make_campaign()
+        candidate = make_candidate()
+        session = make_session(campaign_id=campaign.id, candidate_id=candidate.id, **overrides)
+        session.candidate = candidate
+        session.campaign = campaign
+        return session
+
+    async def test_returns_items_with_candidate_campaign_and_score(self):
+        session = self._make_session_with_relations()
+        comm = make_communication_assessment(assessment_session_id=session.id, overall_score=77.0)
+        session_repo = MagicMock()
+        session_repo.list_by_org = AsyncMock(return_value=[session])
+        communication_assessment_repo = MagicMock()
+        communication_assessment_repo.list_by_session_ids = AsyncMock(return_value=[comm])
+        service = make_service(
+            session_repo=session_repo, communication_assessment_repo=communication_assessment_repo
+        )
+
+        result = await service.list_sessions(make_user())
+
+        assert result.total == 1
+        item = result.items[0]
+        assert item.session_id == session.id
+        assert item.candidate.first_name == session.candidate.first_name
+        assert item.campaign.title == session.campaign.title
+        assert item.overall_score == 77.0
+        assert item.communication_status == comm.status
+
+    async def test_no_communication_assessment_yet(self):
+        session = self._make_session_with_relations()
+        session_repo = MagicMock()
+        session_repo.list_by_org = AsyncMock(return_value=[session])
+        communication_assessment_repo = MagicMock()
+        communication_assessment_repo.list_by_session_ids = AsyncMock(return_value=[])
+        service = make_service(
+            session_repo=session_repo, communication_assessment_repo=communication_assessment_repo
+        )
+
+        result = await service.list_sessions(make_user())
+
+        item = result.items[0]
+        assert item.overall_score is None
+        assert item.communication_status is None
+
+    async def test_progress_percent_reflects_current_section(self):
+        session = self._make_session_with_relations(current_section=AssessmentSection.READ_ALOUD)
+        session_repo = MagicMock()
+        session_repo.list_by_org = AsyncMock(return_value=[session])
+        communication_assessment_repo = MagicMock()
+        communication_assessment_repo.list_by_session_ids = AsyncMock(return_value=[])
+        service = make_service(
+            session_repo=session_repo, communication_assessment_repo=communication_assessment_repo
+        )
+
+        result = await service.list_sessions(make_user())
+        assert result.items[0].progress_percent == 33
+
+    async def test_completed_session_is_full_progress(self):
+        session = self._make_session_with_relations(status=AssessmentSessionStatus.COMPLETED)
+        session_repo = MagicMock()
+        session_repo.list_by_org = AsyncMock(return_value=[session])
+        communication_assessment_repo = MagicMock()
+        communication_assessment_repo.list_by_session_ids = AsyncMock(return_value=[])
+        service = make_service(
+            session_repo=session_repo, communication_assessment_repo=communication_assessment_repo
+        )
+
+        result = await service.list_sessions(make_user())
+        assert result.items[0].progress_percent == 100
+
+    async def test_requires_org(self):
+        service = make_service()
+        with pytest.raises(HTTPException) as exc_info:
+            await service.list_sessions(make_user(org_id=None))
+        assert exc_info.value.status_code == 422
+
+    async def test_passes_campaign_id_filter_through(self):
+        session_repo = MagicMock()
+        session_repo.list_by_org = AsyncMock(return_value=[])
+        communication_assessment_repo = MagicMock()
+        communication_assessment_repo.list_by_session_ids = AsyncMock(return_value=[])
+        service = make_service(
+            session_repo=session_repo, communication_assessment_repo=communication_assessment_repo
+        )
+        campaign_id = uuid.uuid4()
+
+        await service.list_sessions(make_user(), campaign_id=campaign_id)
+
+        session_repo.list_by_org.assert_called_once_with(_ORG_ID, campaign_id)
 
 
 # ── get_recording_audio ──────────────────────────────────────────────────────

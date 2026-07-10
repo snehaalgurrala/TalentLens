@@ -7,8 +7,9 @@ import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { useMarkInvitationCompleted } from "@/hooks/use-assessment-invitations"
 import { useUploadRecording } from "@/hooks/use-assessment-session"
-import type { RecordingType } from "@/types"
+import type { ApiError, RecordingType } from "@/types"
 import { useAssessmentRunner } from "./assessment-runner-context"
 import { AssessmentScreenShell } from "./assessment-screen-shell"
 import type { RecordingAnswer, RecordingUploadState } from "./types"
@@ -52,7 +53,8 @@ function useRecordingUpload(
   recordingType: RecordingType,
   recording: RecordingAnswer | null,
   upload: RecordingUploadState,
-  updateUpload: (patch: Partial<RecordingUploadState>) => void
+  updateUpload: (patch: Partial<RecordingUploadState>) => void,
+  invitationToken: string | null
 ) {
   const mutation = useUploadRecording()
   const triggeredRef = React.useRef(false)
@@ -61,19 +63,27 @@ function useRecordingUpload(
     if (!sessionId || !recording || upload.status !== "idle" || triggeredRef.current) return
     triggeredRef.current = true
     updateUpload({ status: "uploading", progress: 0, error: null })
-    mutation.mutate(
-      {
+
+    // mutateAsync (not mutate(vars, {onSuccess, onError})): the per-call
+    // callback form only fires while the mutation observer still
+    // "hasListeners()" (@tanstack/query-core mutationObserver.ts) — under
+    // React 18 Strict Mode's dev-only mount→cleanup→remount cycle that can
+    // momentarily be false right as the request settles, silently
+    // dropping the callback and leaving the row stuck spinning forever
+    // even though the upload actually succeeded server-side. mutateAsync's
+    // promise resolves/rejects from Mutation.execute() directly, so it
+    // isn't subject to that gating.
+    mutation
+      .mutateAsync({
         sessionId,
         recordingType,
         blob: recording.blob,
         durationSeconds: recording.durationSeconds,
         onUploadProgress: (percent) => updateUpload({ progress: percent }),
-      },
-      {
-        onSuccess: () => updateUpload({ status: "uploaded", progress: 100, error: null }),
-        onError: (error) => updateUpload({ status: "failed", error: error.message }),
-      }
-    )
+        invitationToken,
+      })
+      .then(() => updateUpload({ status: "uploaded", progress: 100, error: null }))
+      .catch((error: ApiError) => updateUpload({ status: "failed", error: error.message }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, recording, upload.status])
 
@@ -90,6 +100,7 @@ function UploadingScreen() {
   const router = useRouter()
   const {
     sessionId,
+    invitationToken,
     readAloudRecording,
     readAloudUpload,
     updateReadAloudUpload,
@@ -97,29 +108,41 @@ function UploadingScreen() {
     listenRepeatUpload,
     updateListenRepeatUpload,
   } = useAssessmentRunner()
+  const markCompleted = useMarkInvitationCompleted()
 
   const readAloud = useRecordingUpload(
     sessionId,
     "READ_ALOUD",
     readAloudRecording,
     readAloudUpload,
-    updateReadAloudUpload
+    updateReadAloudUpload,
+    invitationToken
   )
   const listenRepeat = useRecordingUpload(
     sessionId,
     "LISTEN_REPEAT",
     listenRepeatRecording,
     listenRepeatUpload,
-    updateListenRepeatUpload
+    updateListenRepeatUpload,
+    invitationToken
   )
 
   const bothUploaded = readAloudUpload.status === "uploaded" && listenRepeatUpload.status === "uploaded"
+  const completionReportedRef = React.useRef(false)
 
   React.useEffect(() => {
     if (!bothUploaded) return
+    // Best-effort: this is a lifecycle side-signal for the recruiter
+    // dashboard, not a gate on the candidate's own progress, so a failure
+    // here must never block navigation to the completed screen.
+    if (invitationToken && !completionReportedRef.current) {
+      completionReportedRef.current = true
+      markCompleted.mutate(invitationToken)
+    }
     const timeout = setTimeout(() => router.push("/assessment/completed"), 600)
     return () => clearTimeout(timeout)
-  }, [bothUploaded, router])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bothUploaded, router, invitationToken])
 
   if (!sessionId) {
     return (

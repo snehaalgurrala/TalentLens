@@ -10,10 +10,16 @@ jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
 }))
 
-const mutateMock = jest.fn()
+const mutateAsyncMock = jest.fn()
 
 jest.mock("@/hooks/use-assessment-session", () => ({
-  useUploadRecording: () => ({ mutate: mutateMock }),
+  useUploadRecording: () => ({ mutateAsync: mutateAsyncMock }),
+}))
+
+const markCompletedMutateMock = jest.fn()
+
+jest.mock("@/hooks/use-assessment-invitations", () => ({
+  useMarkInvitationCompleted: () => ({ mutate: markCompletedMutateMock }),
 }))
 
 function makeRecording() {
@@ -25,10 +31,18 @@ function makeRecording() {
   }
 }
 
-function Seed({ withRecordings = true }: { withRecordings?: boolean }) {
-  const { setSessionId, setReadAloudRecording, setListenRepeatRecording } = useAssessmentRunner()
+function Seed({
+  withRecordings = true,
+  invitationToken = null,
+}: {
+  withRecordings?: boolean
+  invitationToken?: string | null
+}) {
+  const { setSessionId, setInvitationToken, setReadAloudRecording, setListenRepeatRecording } =
+    useAssessmentRunner()
   React.useEffect(() => {
     setSessionId("session-123")
+    if (invitationToken) setInvitationToken(invitationToken)
     if (withRecordings) {
       setReadAloudRecording(makeRecording())
       setListenRepeatRecording(makeRecording())
@@ -38,10 +52,10 @@ function Seed({ withRecordings = true }: { withRecordings?: boolean }) {
   return null
 }
 
-function renderScreen(withRecordings = true) {
+function renderScreen(withRecordings = true, invitationToken: string | null = null) {
   return render(
     <AssessmentRunnerProvider>
-      <Seed withRecordings={withRecordings} />
+      <Seed withRecordings={withRecordings} invitationToken={invitationToken} />
       <UploadingScreen />
     </AssessmentRunnerProvider>
   )
@@ -52,8 +66,10 @@ describe("UploadingScreen", () => {
 
   beforeEach(() => {
     URL.revokeObjectURL = jest.fn()
-    mutateMock.mockReset()
+    mutateAsyncMock.mockReset()
+    mutateAsyncMock.mockResolvedValue(undefined)
     pushMock.mockReset()
+    markCompletedMutateMock.mockReset()
   })
 
   afterEach(() => {
@@ -67,47 +83,70 @@ describe("UploadingScreen", () => {
       </AssessmentRunnerProvider>
     )
     expect(screen.getByText("Session Not Found")).toBeInTheDocument()
-    expect(mutateMock).not.toHaveBeenCalled()
+    expect(mutateAsyncMock).not.toHaveBeenCalled()
   })
 
   it("triggers an upload for both recordings once a session and recordings exist", async () => {
     renderScreen()
-    await waitFor(() => expect(mutateMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalledTimes(2))
 
-    const recordingTypes = mutateMock.mock.calls.map(([vars]) => vars.recordingType)
+    const recordingTypes = mutateAsyncMock.mock.calls.map(([vars]) => vars.recordingType)
     expect(recordingTypes.sort()).toEqual(["LISTEN_REPEAT", "READ_ALOUD"])
   })
 
   it("navigates to /assessment/completed once both uploads succeed", async () => {
-    mutateMock.mockImplementation((vars, { onSuccess }) => onSuccess())
-
-    jest.useFakeTimers()
     renderScreen()
-    await waitFor(() => expect(mutateMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalledTimes(2))
 
-    act(() => {
-      jest.advanceTimersByTime(700)
+    // Real timers: the resolved mutateAsync promises must actually settle
+    // (microtask queue) before the screen's own 600ms completion timeout
+    // starts, so faking timers here would race the promise resolution
+    // rather than the setTimeout.
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/assessment/completed"), {
+      timeout: 2000,
     })
+  })
 
-    expect(pushMock).toHaveBeenCalledWith("/assessment/completed")
-    jest.useRealTimers()
+  it("passes the invitation token through to the upload call itself", async () => {
+    renderScreen(true, "invite-token-abc")
+    await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalledTimes(2))
+
+    for (const [vars] of mutateAsyncMock.mock.calls) {
+      expect(vars.invitationToken).toBe("invite-token-abc")
+    }
+  })
+
+  it("reports the invitation as completed when an invitation token is present", async () => {
+    renderScreen(true, "invite-token-abc")
+    await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(markCompletedMutateMock).toHaveBeenCalledWith("invite-token-abc"))
+  })
+
+  it("does not report completion when there is no invitation token (dev-testing flow)", async () => {
+    renderScreen(true, null)
+    await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalledTimes(2))
+
+    expect(markCompletedMutateMock).not.toHaveBeenCalled()
   })
 
   it("shows Retry on failure and re-invokes only that recording's upload", async () => {
-    mutateMock.mockImplementation((vars, { onError }) => {
-      if (vars.recordingType === "READ_ALOUD") onError({ message: "network error", status: 0 })
-    })
+    mutateAsyncMock.mockImplementation((vars) =>
+      vars.recordingType === "READ_ALOUD"
+        ? Promise.reject({ message: "network error", status: 0 })
+        : Promise.resolve()
+    )
 
     renderScreen()
-    await waitFor(() => expect(mutateMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalledTimes(2))
 
     const retryButtons = await screen.findAllByText("Retry")
     expect(retryButtons).toHaveLength(1)
 
-    mutateMock.mockClear()
+    mutateAsyncMock.mockClear()
+    mutateAsyncMock.mockResolvedValue(undefined)
     act(() => retryButtons[0].click())
 
-    await waitFor(() => expect(mutateMock).toHaveBeenCalledTimes(1))
-    expect(mutateMock.mock.calls[0][0].recordingType).toBe("READ_ALOUD")
+    await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalledTimes(1))
+    expect(mutateAsyncMock.mock.calls[0][0].recordingType).toBe("READ_ALOUD")
   })
 })

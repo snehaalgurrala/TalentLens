@@ -21,17 +21,26 @@ interface UploadRecordingVariables {
   blob: Blob
   durationSeconds: number
   onUploadProgress?: (percent: number) => void
+  invitationToken?: string | null
 }
 
 export function useUploadRecording() {
   return useMutation<AssessmentRecording, ApiError, UploadRecordingVariables>({
-    mutationFn: ({ sessionId, recordingType, blob, durationSeconds, onUploadProgress }) =>
+    mutationFn: ({
+      sessionId,
+      recordingType,
+      blob,
+      durationSeconds,
+      onUploadProgress,
+      invitationToken,
+    }) =>
       assessmentSessionService.uploadRecording(
         sessionId,
         recordingType,
         blob,
         durationSeconds,
-        onUploadProgress
+        onUploadProgress,
+        invitationToken
       ),
   })
 }

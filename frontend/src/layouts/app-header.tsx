@@ -5,6 +5,7 @@ import { MenuIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { HeaderShell } from "@/components/layout/header-shell"
+import { NotificationBell } from "@/features/notifications"
 import { useSidebar } from "@/hooks/use-sidebar"
 import { BreadcrumbArea } from "@/layouts/breadcrumb-area"
 import { UserProfileDropdown } from "@/layouts/user-profile-dropdown"
@@ -30,7 +31,12 @@ function AppHeader() {
           <BreadcrumbArea />
         </>
       }
-      right={<UserProfileDropdown />}
+      right={
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <UserProfileDropdown />
+        </div>
+      }
     />
   )
 }

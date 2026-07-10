@@ -10,8 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAssessmentRunner } from "./assessment-runner-context"
 import { AssessmentProgressHeader } from "./assessment-progress-header"
 import { RecordingCard } from "./recording-card"
-
-const PLAYBACK_SECONDS = 4
+import { listenRepeatSentence } from "./mock-data"
 
 function ListenRepeatScreen() {
   const router = useRouter()
@@ -25,15 +24,34 @@ function ListenRepeatScreen() {
   } = useAssessmentRunner()
   const [isPlaying, setIsPlaying] = React.useState(false)
   const [hasPlayed, setHasPlayed] = React.useState(false)
+  const [speechSupported] = React.useState(
+    () => typeof window !== "undefined" && Boolean(window.speechSynthesis)
+  )
 
+  // Stop any in-flight utterance if the candidate navigates away mid-speech.
   React.useEffect(() => {
-    if (!isPlaying) return
-    const timeout = setTimeout(() => {
+    return () => {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel()
+      }
+    }
+  }, [])
+
+  const handlePlay = () => {
+    if (!speechSupported || isPlaying || hasPlayed) return
+    setIsPlaying(true)
+    const utterance = new SpeechSynthesisUtterance(listenRepeatSentence)
+    utterance.onend = () => {
       setIsPlaying(false)
       setHasPlayed(true)
-    }, PLAYBACK_SECONDS * 1000)
-    return () => clearTimeout(timeout)
-  }, [isPlaying])
+    }
+    utterance.onerror = () => {
+      setIsPlaying(false)
+      setHasPlayed(true)
+    }
+    window.speechSynthesis.cancel()
+    window.speechSynthesis.speak(utterance)
+  }
 
   const handleContinue = () => {
     completeListenRepeat()
@@ -55,17 +73,23 @@ function ListenRepeatScreen() {
           <CardHeader className="items-center text-center">
             <CardTitle>Listen &amp; Repeat</CardTitle>
             <CardDescription>
-              Listen to the sentence once, then record yourself repeating it. You can only listen
-              once, so pay close attention.
+              {speechSupported
+                ? "Listen to the sentence once, then record yourself repeating it. You can only listen once, so pay close attention."
+                : "Your browser can't play the sentence aloud, so it's shown below instead. Read it, then record yourself repeating it."}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4 py-4">
-            {isPlaying ? (
+            {!speechSupported ? (
+              <p className="rounded-md bg-muted px-4 py-3 text-center text-sm font-medium">
+                {listenRepeatSentence}
+              </p>
+            ) : isPlaying ? (
               <div
                 className="flex h-16 items-center justify-center gap-1"
                 role="status"
                 aria-live="polite"
               >
+                <span className="sr-only">Playing sentence…</span>
                 {Array.from({ length: 16 }).map((_, index) => (
                   <span
                     key={index}
@@ -82,24 +106,41 @@ function ListenRepeatScreen() {
                 <Volume2 className="size-7 text-muted-foreground" aria-hidden="true" />
               </div>
             )}
-            <Button
-              onClick={() => setIsPlaying(true)}
-              disabled={hasPlayed || isPlaying}
-              size="lg"
-              variant={hasPlayed ? "outline" : "default"}
-            >
-              {hasPlayed ? (
-                <>
-                  <CheckCircle2 /> Played
-                </>
-              ) : isPlaying ? (
-                "Playing…"
-              ) : (
-                <>
-                  <Volume2 /> Play Sentence
-                </>
-              )}
-            </Button>
+            {speechSupported ? (
+              <Button
+                onClick={handlePlay}
+                disabled={hasPlayed || isPlaying}
+                size="lg"
+                variant={hasPlayed ? "outline" : "default"}
+              >
+                {hasPlayed ? (
+                  <>
+                    <CheckCircle2 /> Played
+                  </>
+                ) : isPlaying ? (
+                  "Playing…"
+                ) : (
+                  <>
+                    <Volume2 /> Play Sentence
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button
+                onClick={() => setHasPlayed(true)}
+                disabled={hasPlayed}
+                size="lg"
+                variant={hasPlayed ? "outline" : "default"}
+              >
+                {hasPlayed ? (
+                  <>
+                    <CheckCircle2 /> Ready
+                  </>
+                ) : (
+                  "I've read the sentence"
+                )}
+              </Button>
+            )}
           </CardContent>
         </Card>
         <div className="w-full max-w-xl">

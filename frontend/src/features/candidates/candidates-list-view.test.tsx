@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 
+import { assessmentInvitationService } from "@/services/assessment-invitation.service"
 import { campaignService } from "@/services/campaign.service"
 import { candidateService } from "@/services/candidate.service"
 import type { Campaign, CandidateListItem, CandidateListResponse } from "@/types"
@@ -32,9 +33,13 @@ jest.mock("@/services/candidate.service", () => ({
 jest.mock("@/services/organization.service", () => ({
   organizationService: { listMembers: jest.fn().mockResolvedValue([]) },
 }))
+jest.mock("@/services/assessment-invitation.service", () => ({
+  assessmentInvitationService: { send: jest.fn() },
+}))
 
 const mockedCampaignService = jest.mocked(campaignService)
 const mockedCandidateService = jest.mocked(candidateService)
+const mockedAssessmentInvitationService = jest.mocked(assessmentInvitationService)
 
 const CAMPAIGN: Campaign = {
   id: "c1",
@@ -167,5 +172,34 @@ describe("CandidatesListView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Shortlist" }))
 
     await waitFor(() => expect(mockedCandidateService.bulkShortlist).toHaveBeenCalledWith(["rf1"]))
+  })
+
+  it("sends an assessment invitation to the selected candidate via the Send Assessment dialog", async () => {
+    mockedCampaignService.list.mockResolvedValue([CAMPAIGN])
+    mockedCandidateService.listCampaignCandidates.mockResolvedValue(CANDIDATE_LIST_RESPONSE)
+    mockedAssessmentInvitationService.send.mockResolvedValue({
+      succeeded: [{ candidate_id: "cand1", invitation_id: "inv1" }],
+      failed: [],
+    })
+    renderWithClient(<CandidatesListView />)
+    await waitFor(() => expect(screen.getAllByText("Jane Doe").length).toBeGreaterThan(0))
+
+    fireEvent.click(screen.getAllByRole("checkbox", { name: "Select Jane Doe" })[0])
+    expect(await screen.findByText("1 selected")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Send Assessment" }))
+    const sendButtons = await screen.findAllByRole("button", { name: "Send Assessment" })
+    fireEvent.click(sendButtons[sendButtons.length - 1])
+
+    await waitFor(() =>
+      expect(mockedAssessmentInvitationService.send).toHaveBeenCalledWith({
+        campaign_id: "c1",
+        candidate_ids: ["cand1"],
+        expiration_hours: 48,
+      })
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Done" }))
+    expect(screen.queryByText("1 selected")).not.toBeInTheDocument()
   })
 })

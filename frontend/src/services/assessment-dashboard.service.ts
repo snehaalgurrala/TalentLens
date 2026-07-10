@@ -1,8 +1,18 @@
 import { api } from "@/services/api"
 import { apiClient } from "@/services/axios"
-import type { AssessmentSession, AssessmentSessionFull, RecordingType } from "@/types"
+import type {
+  AssessmentSession,
+  AssessmentSessionFull,
+  AssessmentSessionListResponse,
+  RecordingType,
+} from "@/types"
 
 export const assessmentDashboardService = {
+  list: (campaignId?: string) =>
+    api.get<AssessmentSessionListResponse>("/assessment/session", {
+      params: campaignId ? { campaign_id: campaignId } : undefined,
+    }),
+
   getFull: (sessionId: string) =>
     api.get<AssessmentSessionFull>(`/assessment/session/${sessionId}/full`),
 

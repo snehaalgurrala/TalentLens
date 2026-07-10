@@ -41,6 +41,7 @@ export type PipelineStage =
   | "RANKED"
   | "SHORTLISTED"
   | "ASSESSMENT_SENT"
+  | "ASSESSMENT_IN_PROGRESS"
   | "INTERVIEW_SCHEDULED"
   | "REJECTED"
   | "HIRED"

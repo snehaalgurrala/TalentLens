@@ -144,7 +144,24 @@ class TestWhisperServiceTranscribe:
             result = svc.transcribe("/tmp/fake.webm")
 
         assert result["text"] == "hi there"
-        fake_model.transcribe.assert_called_once_with("/tmp/fake.webm")
+        fake_model.transcribe.assert_called_once_with(
+            "/tmp/fake.webm",
+            language="en",
+            task="transcribe",
+            temperature=0.0,
+            beam_size=5,
+            best_of=5,
+            condition_on_previous_text=False,
+            fp16=False,
+        )
+
+    def test_uses_real_fp16_on_a_non_cpu_device(self):
+        fake_model = _mock_model()
+        with patch("app.ai.speech.whisper_service._load_model", return_value=fake_model):
+            svc = WhisperService(model_name="small", device="cuda")
+            svc.transcribe("/tmp/fake.webm")
+
+        assert fake_model.transcribe.call_args.kwargs["fp16"] is True
 
     def test_corrupted_audio_raises_transcription_error(self):
         fake_model = MagicMock()

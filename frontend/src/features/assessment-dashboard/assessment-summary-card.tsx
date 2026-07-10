@@ -1,21 +1,36 @@
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import type { AssessmentSession, CommunicationAssessment } from "@/types"
+import type {
+  AssessmentSession,
+  AssessmentSessionCampaignInfo,
+  AssessmentSessionCandidateInfo,
+  CommunicationAssessment,
+} from "@/types"
 
 import { formatDateTime, formatDuration, scoreTone } from "./format"
 
 export interface AssessmentSummaryCardProps {
   session: AssessmentSession
+  candidate: AssessmentSessionCandidateInfo
+  campaign: AssessmentSessionCampaignInfo
   communicationAssessment: CommunicationAssessment | null
 }
 
-function AssessmentSummaryCard({ session, communicationAssessment }: AssessmentSummaryCardProps) {
+function AssessmentSummaryCard({
+  session,
+  candidate,
+  campaign,
+  communicationAssessment,
+}: AssessmentSummaryCardProps) {
   const overallScore = communicationAssessment?.overall_score ?? null
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Assessment Summary</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          {candidate.first_name} {candidate.last_name} &middot; {campaign.title}
+        </p>
       </CardHeader>
       <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="flex flex-col gap-1">

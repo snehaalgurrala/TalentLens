@@ -1,0 +1,12 @@
+TalentLens Organization Invitation
+
+$inviter_name has invited you to join "$org_name" as a recruiter.
+
+Accept your invitation here:
+$registration_url
+
+This invitation expires on: $expires_at
+
+If you weren't expecting this invitation, you can safely ignore this email.
+
+— The TalentLens Team

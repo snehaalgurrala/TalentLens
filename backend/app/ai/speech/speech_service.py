@@ -15,7 +15,9 @@ import logging
 import math
 import time
 
+from app.ai.speech.audio_preprocessing import preprocess_audio_file
 from app.ai.speech.schemas import TranscriptionResult, TranscriptSegment
+from app.ai.speech.transcript_cleanup import clean_transcript
 from app.ai.speech.transcription import staged_audio_file, validate_audio
 from app.ai.speech.whisper_service import WhisperService
 
@@ -54,9 +56,12 @@ class SpeechService:
         """
         normalized_mime = validate_audio(data, mime_type)
 
-        with staged_audio_file(data, normalized_mime) as audio_path:
+        with (
+            staged_audio_file(data, normalized_mime) as audio_path,
+            preprocess_audio_file(audio_path) as processed_path,
+        ):
             started = time.monotonic()
-            raw = await asyncio.to_thread(self.whisper_service.transcribe, audio_path)
+            raw = await asyncio.to_thread(self.whisper_service.transcribe, processed_path)
             elapsed = time.monotonic() - started
 
         segments = [
@@ -75,7 +80,7 @@ class SpeechService:
         overall_confidence = sum(confidences) / len(confidences) if confidences else None
 
         result = TranscriptionResult(
-            transcript=(raw.get("text") or "").strip(),
+            transcript=clean_transcript((raw.get("text") or "").strip()),
             language=raw.get("language") or "unknown",
             duration_seconds=duration_seconds,
             processing_time_seconds=round(elapsed, 3),

@@ -46,6 +46,7 @@ def make_org(**overrides) -> Organization:
         name="Acme Corp",
         slug="acme-corp",
         is_active=True,
+        timezone="UTC",
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
     )

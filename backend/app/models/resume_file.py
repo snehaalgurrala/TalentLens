@@ -34,6 +34,7 @@ class PipelineStage(str, enum.Enum):
     RANKED = "RANKED"
     SHORTLISTED = "SHORTLISTED"
     ASSESSMENT_SENT = "ASSESSMENT_SENT"
+    ASSESSMENT_IN_PROGRESS = "ASSESSMENT_IN_PROGRESS"
     INTERVIEW_SCHEDULED = "INTERVIEW_SCHEDULED"
     REJECTED = "REJECTED"
     HIRED = "HIRED"
@@ -52,18 +53,23 @@ _PIPELINE_STAGE_ORDER: dict[PipelineStage, int] = {
     PipelineStage.RANKED: 3,
     PipelineStage.SHORTLISTED: 4,
     PipelineStage.ASSESSMENT_SENT: 5,
-    PipelineStage.INTERVIEW_SCHEDULED: 6,
-    PipelineStage.REJECTED: 7,
-    PipelineStage.HIRED: 8,
+    # Candidate opened the assessment link — set automatically, between
+    # ASSESSMENT_SENT and ASSESSMENT_COMPLETED (see PART 2 of the
+    # phase5-sprint5.8-automatic-pipeline-workflow doc for the full
+    # auto-transition list).
+    PipelineStage.ASSESSMENT_IN_PROGRESS: 6,
+    PipelineStage.INTERVIEW_SCHEDULED: 7,
+    PipelineStage.REJECTED: 8,
+    PipelineStage.HIRED: 9,
     # Appended, not interleaved: these stages have no upstream auto-nudge
     # signal (see is_earlier_pipeline_stage callers), so their relative
     # order here only matters for the terminal-most group at the end.
-    PipelineStage.ASSESSMENT_COMPLETED: 9,
-    PipelineStage.INTERVIEW_COMPLETED: 10,
-    PipelineStage.OFFER_EXTENDED: 11,
-    PipelineStage.OFFER_ACCEPTED: 12,
-    PipelineStage.WITHDRAWN: 13,
-    PipelineStage.ARCHIVED: 14,
+    PipelineStage.ASSESSMENT_COMPLETED: 10,
+    PipelineStage.INTERVIEW_COMPLETED: 11,
+    PipelineStage.OFFER_EXTENDED: 12,
+    PipelineStage.OFFER_ACCEPTED: 13,
+    PipelineStage.WITHDRAWN: 14,
+    PipelineStage.ARCHIVED: 15,
 }
 
 

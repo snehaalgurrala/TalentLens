@@ -17,7 +17,10 @@ import pytest
 from httpx import AsyncClient
 
 from app.api.deps import get_current_user
-from app.api.v1.endpoints.assessment_sessions import get_assessment_session_service
+from app.api.v1.endpoints.assessment_sessions import (
+    get_assessment_session_service,
+    resolve_recording_upload_org_id,
+)
 from app.main import app
 from app.models.assessment_answer import AssessmentAnswer
 from app.models.assessment_recording import AssessmentRecording, RecordingStatus, RecordingType
@@ -116,6 +119,17 @@ def candidate_role():
     app.dependency_overrides[get_current_user] = lambda: user
     yield user
     app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.fixture
+def upload_authorized():
+    """The recording-upload endpoint is authorized via
+    resolve_recording_upload_org_id, not get_current_user (it accepts a
+    recruiter JWT *or* a candidate's invitation token) — override that
+    dependency directly rather than get_current_user."""
+    app.dependency_overrides[resolve_recording_upload_org_id] = lambda: _ORG_ID
+    yield _ORG_ID
+    app.dependency_overrides.pop(resolve_recording_upload_org_id, None)
 
 
 class TestCreateSession:
@@ -312,7 +326,7 @@ class TestUploadRecording:
             yield m
 
     async def test_uploads_recording_successfully(
-        self, client_no_lifespan: AsyncClient, mock_service, recruiter: User
+        self, client_no_lifespan: AsyncClient, mock_service, upload_authorized
     ):
         recording = make_recording(status=RecordingStatus.UPLOADED, uploaded_at=datetime.now(UTC))
         mock_service.upload_recording = AsyncMock(return_value=recording)
@@ -329,7 +343,7 @@ class TestUploadRecording:
         assert body["uploaded_at"] is not None
 
     async def test_dispatches_transcription_task_after_successful_upload(
-        self, client_no_lifespan: AsyncClient, mock_service, recruiter: User
+        self, client_no_lifespan: AsyncClient, mock_service, upload_authorized
     ):
         recording = make_recording(status=RecordingStatus.UPLOADED, uploaded_at=datetime.now(UTC))
         mock_service.upload_recording = AsyncMock(return_value=recording)
@@ -343,7 +357,7 @@ class TestUploadRecording:
         self._mock_enqueue.assert_called_once_with(str(recording.id))
 
     async def test_does_not_dispatch_when_upload_fails(
-        self, client_no_lifespan: AsyncClient, mock_service, recruiter: User
+        self, client_no_lifespan: AsyncClient, mock_service, upload_authorized
     ):
         from fastapi import HTTPException
 
@@ -359,19 +373,23 @@ class TestUploadRecording:
 
         self._mock_enqueue.assert_not_called()
 
-    async def test_candidate_role_forbidden(
-        self, client_no_lifespan: AsyncClient, mock_service, candidate_role: User
+    async def test_no_recruiter_jwt_and_no_invitation_token_returns_401(
+        self, client_no_lifespan: AsyncClient, mock_service
     ):
+        """Neither the recruiter/admin JWT path nor the candidate invitation-
+        token path is satisfied — no Authorization header, no
+        X-Assessment-Token header — so resolve_recording_upload_org_id (the
+        real dependency, not overridden in this test) must reject."""
         res = await client_no_lifespan.post(
             self._url(uuid.uuid4()),
             files={"file": ("clip.webm", b"audio-bytes", "audio/webm")},
             data={"duration_seconds": "12.5"},
         )
-        assert res.status_code == 403
+        assert res.status_code == 401
         mock_service.upload_recording.assert_not_called()
 
     async def test_missing_duration_seconds_returns_422(
-        self, client_no_lifespan: AsyncClient, mock_service, recruiter: User
+        self, client_no_lifespan: AsyncClient, mock_service, upload_authorized
     ):
         res = await client_no_lifespan.post(
             self._url(uuid.uuid4()),
@@ -381,7 +399,7 @@ class TestUploadRecording:
         mock_service.upload_recording.assert_not_called()
 
     async def test_invalid_recording_type_path_param_returns_422(
-        self, client_no_lifespan: AsyncClient, mock_service, recruiter: User
+        self, client_no_lifespan: AsyncClient, mock_service, upload_authorized
     ):
         res = await client_no_lifespan.post(
             self._url(uuid.uuid4(), recording_type="BOGUS"),
@@ -392,7 +410,7 @@ class TestUploadRecording:
         mock_service.upload_recording.assert_not_called()
 
     async def test_service_422_propagates(
-        self, client_no_lifespan: AsyncClient, mock_service, recruiter: User
+        self, client_no_lifespan: AsyncClient, mock_service, upload_authorized
     ):
         from fastapi import HTTPException
 
@@ -408,7 +426,7 @@ class TestUploadRecording:
         assert res.status_code == 422
 
     async def test_service_404_propagates(
-        self, client_no_lifespan: AsyncClient, mock_service, recruiter: User
+        self, client_no_lifespan: AsyncClient, mock_service, upload_authorized
     ):
         from fastapi import HTTPException
 

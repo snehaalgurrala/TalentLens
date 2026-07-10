@@ -15,9 +15,17 @@ export interface CandidatesMobileCardsProps {
   selectedIds: Set<string>
   onToggleSelect: (id: string) => void
   onEditNotes: (candidate: CandidateListItem) => void
+  /** Passed through to each card's CandidateActionsMenu for "Send Assessment". */
+  campaignId: string
 }
 
-function CandidatesMobileCards({ candidates, selectedIds, onToggleSelect, onEditNotes }: CandidatesMobileCardsProps) {
+function CandidatesMobileCards({
+  candidates,
+  selectedIds,
+  onToggleSelect,
+  onEditNotes,
+  campaignId,
+}: CandidatesMobileCardsProps) {
   return (
     <div className="flex flex-col gap-3 md:hidden">
       {candidates.map((candidate) => (
@@ -47,7 +55,7 @@ function CandidatesMobileCards({ candidates, selectedIds, onToggleSelect, onEdit
                 onCheckedChange={() => onToggleSelect(candidate.resume_file_id)}
                 aria-label={`Select ${candidate.candidate_name}`}
               />
-              <CandidateActionsMenu candidate={candidate} onEditNotes={onEditNotes} />
+              <CandidateActionsMenu candidate={candidate} onEditNotes={onEditNotes} campaignId={campaignId} />
             </div>
           }
         />

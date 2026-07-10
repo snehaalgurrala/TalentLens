@@ -64,6 +64,25 @@ async def get_current_user(
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
+async def get_current_session_id(
+    token: Annotated[str, Depends(oauth2_scheme)],
+) -> uuid.UUID | None:
+    """The UserSession.id embedded in the access token (see
+    app.services.user_session), used to identify "this device" for the
+    Security tab's session list and to exempt the calling device from
+    change-password's revoke-all-other-sessions. None for tokens issued
+    before session tracking existed (self-heals on next login/refresh)."""
+    try:
+        payload = decode_token(token)
+        sid = payload.get("sid")
+        return uuid.UUID(sid) if sid else None
+    except (jwt.InvalidTokenError, ValueError):
+        return None
+
+
+CurrentSessionId = Annotated[uuid.UUID | None, Depends(get_current_session_id)]
+
+
 # ── RBAC helper ───────────────────────────────────────────────────────────────
 class RequireRoles:
     """Callable dependency that restricts access to the specified roles."""

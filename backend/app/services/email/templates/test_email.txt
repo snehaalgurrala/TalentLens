@@ -1,0 +1,4 @@
+TalentLens Test Email
+
+This is a test email sent from TalentLens Settings > Email Configuration to
+verify your SMTP setup is working correctly.

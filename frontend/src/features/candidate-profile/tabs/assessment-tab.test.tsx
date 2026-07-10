@@ -7,7 +7,7 @@ import type { AssessmentSession } from "@/types"
 import { AssessmentTab } from "./assessment-tab"
 
 jest.mock("@/services/assessment-dashboard.service", () => ({
-  assessmentDashboardService: { getSessionByCandidate: jest.fn() },
+  assessmentDashboardService: { getSessionByCandidate: jest.fn(), getFull: jest.fn() },
 }))
 
 const mockedService = jest.mocked(assessmentDashboardService)
@@ -50,11 +50,20 @@ describe("AssessmentTab", () => {
       updated_at: new Date().toISOString(),
     }
     mockedService.getSessionByCandidate.mockResolvedValue(session)
+    mockedService.getFull.mockResolvedValue({
+      session,
+      candidate: { id: "cand1", first_name: "Jane", last_name: "Doe", email: "jane@example.com" },
+      campaign: { id: "camp1", title: "Frontend Engineer" },
+      pipeline_stage: null,
+      recordings: [],
+      communication_assessment: null,
+    })
 
     renderWithClient(<AssessmentTab candidateId="cand1" campaignId="camp1" />)
 
     expect(await screen.findByText("In Progress")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /View Full Assessment/i })).toHaveAttribute(
+    expect(screen.getByText("Pending")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /View Dashboard/i })).toHaveAttribute(
       "href",
       "/assessments/session-1"
     )

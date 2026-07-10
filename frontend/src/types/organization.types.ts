@@ -6,7 +6,36 @@ export interface Organization {
   name: string
   slug: string
   is_active: boolean
+  logo_url: string | null
+  industry: string | null
+  website: string | null
+  company_email: string | null
+  phone: string | null
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
+  state: string | null
+  postal_code: string | null
+  country: string | null
+  timezone: string
+  description: string | null
   created_at: string
+}
+
+export interface OrganizationUpdate {
+  name?: string
+  industry?: string
+  website?: string
+  company_email?: string
+  phone?: string
+  address_line1?: string
+  address_line2?: string
+  city?: string
+  state?: string
+  postal_code?: string
+  country?: string
+  timezone?: string
+  description?: string
 }
 
 export interface OrganizationBootstrapRequest {

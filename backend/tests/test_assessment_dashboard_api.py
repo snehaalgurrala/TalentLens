@@ -25,7 +25,14 @@ from app.models.assessment_session import (
     AssessmentSessionStatus,
 )
 from app.models.user import User, UserRole
-from app.schemas.assessment_dashboard import AssessmentRecordingDetail, AssessmentSessionFullResponse
+from app.schemas.assessment_dashboard import (
+    AssessmentRecordingDetail,
+    AssessmentSessionCampaignInfo,
+    AssessmentSessionCandidateInfo,
+    AssessmentSessionFullResponse,
+    AssessmentSessionListItem,
+    AssessmentSessionListResponse,
+)
 from app.schemas.assessment_session import AssessmentRecordingResponse, AssessmentSessionResponse
 
 _ORG_ID = uuid.uuid4()
@@ -85,6 +92,11 @@ def make_recording(**overrides) -> AssessmentRecording:
 def make_full_response(session: AssessmentSession, recordings: list | None = None) -> AssessmentSessionFullResponse:
     return AssessmentSessionFullResponse(
         session=AssessmentSessionResponse.model_validate(session),
+        candidate=AssessmentSessionCandidateInfo(
+            id=session.candidate_id, first_name="Jane", last_name="Doe", email="jane@example.com"
+        ),
+        campaign=AssessmentSessionCampaignInfo(id=session.campaign_id, title="Frontend Engineer"),
+        pipeline_stage=None,
         recordings=[
             AssessmentRecordingDetail(
                 recording=AssessmentRecordingResponse.model_validate(r),
@@ -120,6 +132,49 @@ def candidate_role():
     app.dependency_overrides[get_current_user] = lambda: user
     yield user
     app.dependency_overrides.pop(get_current_user, None)
+
+
+class TestListSessions:
+    def _url(self, campaign_id: uuid.UUID | None = None) -> str:
+        base = "/api/v1/assessment/session"
+        return f"{base}?campaign_id={campaign_id}" if campaign_id else base
+
+    async def test_returns_list(self, client_no_lifespan: AsyncClient, mock_service, recruiter: User):
+        session = make_session()
+        item = AssessmentSessionListItem(
+            session_id=session.id,
+            candidate=AssessmentSessionCandidateInfo(
+                id=session.candidate_id, first_name="Jane", last_name="Doe", email="jane@example.com"
+            ),
+            campaign=AssessmentSessionCampaignInfo(id=session.campaign_id, title="Frontend Engineer"),
+            status=session.status,
+            current_section=session.current_section,
+            progress_percent=33,
+            started_at=session.started_at,
+            completed_at=session.completed_at,
+            overall_score=None,
+            communication_status=None,
+        )
+        mock_service.list_sessions = AsyncMock(
+            return_value=AssessmentSessionListResponse(items=[item], total=1)
+        )
+
+        res = await client_no_lifespan.get(self._url())
+
+        assert res.status_code == 200
+        body = res.json()
+        assert body["total"] == 1
+        assert body["items"][0]["session_id"] == str(session.id)
+        assert body["items"][0]["candidate"]["first_name"] == "Jane"
+        assert body["items"][0]["campaign"]["title"] == "Frontend Engineer"
+
+    async def test_candidate_role_forbidden(
+        self, client_no_lifespan: AsyncClient, mock_service, candidate_role: User
+    ):
+        res = await client_no_lifespan.get(self._url())
+
+        assert res.status_code == 403
+        mock_service.list_sessions.assert_not_called()
 
 
 class TestGetSessionByCandidate:

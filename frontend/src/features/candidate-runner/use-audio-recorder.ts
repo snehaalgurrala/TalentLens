@@ -7,6 +7,19 @@ import type { RecordingAnswer, RecordingError, RecordingErrorReason, RecordingSt
 
 const DEFAULT_MAX_DURATION_SECONDS = 60
 
+// Bare (non-`exact`) values are "ideal" hints per the MediaTrackConstraints
+// spec — unsupported constraints or devices that can't hit the ideal value
+// are ignored rather than rejected, so this never throws OverconstrainedError.
+// Matches what Whisper resamples to anyway (mono/16kHz), and the AEC/NS/AGC
+// trio reduces the noise Whisper otherwise has to transcribe through.
+const AUDIO_CONSTRAINTS: MediaTrackConstraints = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+  channelCount: 1,
+  sampleRate: 16000,
+}
+
 export interface UseAudioRecorderOptions {
   maxDurationSeconds?: number
   /** A previously captured recording (e.g. restored from context after navigating back). */
@@ -108,7 +121,7 @@ function useAudioRecorder(options: UseAudioRecorderOptions = {}): UseAudioRecord
 
     let stream: MediaStream
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream = await navigator.mediaDevices.getUserMedia({ audio: AUDIO_CONSTRAINTS })
     } catch (err) {
       setError(getMicrophoneError(err))
       setStatus("error")

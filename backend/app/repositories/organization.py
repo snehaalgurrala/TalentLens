@@ -29,3 +29,10 @@ class OrganizationRepository:
         await self.session.flush()
         await self.session.refresh(organization)
         return organization
+
+    async def update(self, organization: Organization, **kwargs: Any) -> Organization:
+        for key, value in kwargs.items():
+            setattr(organization, key, value)
+        await self.session.flush()
+        await self.session.refresh(organization)
+        return organization

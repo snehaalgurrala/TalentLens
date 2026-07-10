@@ -72,6 +72,7 @@ describe("CandidatesTable", () => {
         onToggleSelectAll={noop}
         onEditNotes={noop}
         onSortChange={noop}
+        campaignId="camp1"
       />
     )
     expect(screen.getByText("No candidates yet")).toBeInTheDocument()
@@ -88,6 +89,7 @@ describe("CandidatesTable", () => {
         onToggleSelectAll={noop}
         onEditNotes={noop}
         onSortChange={noop}
+        campaignId="camp1"
       />
     )
 
@@ -111,6 +113,7 @@ describe("CandidatesTable", () => {
         onToggleSelectAll={noop}
         onEditNotes={noop}
         onSortChange={noop}
+        campaignId="camp1"
       />
     )
     expect(screen.queryByText("88%")).not.toBeInTheDocument()
@@ -129,6 +132,7 @@ describe("CandidatesTable", () => {
         onEditNotes={noop}
         onRowClick={onRowClick}
         onSortChange={noop}
+        campaignId="camp1"
       />
     )
 
@@ -148,6 +152,7 @@ describe("CandidatesTable", () => {
         onToggleSelectAll={noop}
         onEditNotes={noop}
         onSortChange={noop}
+        campaignId="camp1"
       />
     )
 

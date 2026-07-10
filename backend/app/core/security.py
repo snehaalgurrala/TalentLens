@@ -34,12 +34,15 @@ def generate_invitation_token() -> str:
 
 # ── JWT creation ─────────────────────────────────────────────────────────────
 
-def create_access_token(user_id: str, role: str, org_id: str | None) -> str:
+def create_access_token(
+    user_id: str, role: str, org_id: str | None, session_id: str | None = None
+) -> str:
     now = datetime.now(UTC)
     payload = {
         "sub": user_id,
         "role": role,
         "org_id": org_id,
+        "sid": session_id,
         "type": "access",
         "iat": now,
         "exp": now + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES),
@@ -47,10 +50,11 @@ def create_access_token(user_id: str, role: str, org_id: str | None) -> str:
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
-def create_refresh_token(user_id: str) -> str:
+def create_refresh_token(user_id: str, session_id: str | None = None) -> str:
     now = datetime.now(UTC)
     payload = {
         "sub": user_id,
+        "sid": session_id,
         "type": "refresh",
         "iat": now,
         "exp": now + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS),

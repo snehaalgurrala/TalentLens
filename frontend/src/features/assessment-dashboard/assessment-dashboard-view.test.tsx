@@ -36,6 +36,9 @@ function makeSessionFull(): AssessmentSessionFull {
       created_at: now,
       updated_at: now,
     },
+    candidate: { id: "cand-1", first_name: "Jane", last_name: "Doe", email: "jane@example.com" },
+    campaign: { id: "camp-1", title: "Frontend Engineer" },
+    pipeline_stage: null,
     recordings: [],
     communication_assessment: null,
   }

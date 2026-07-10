@@ -13,6 +13,7 @@ import { CommunicationOverviewCard } from "./communication-overview-card"
 import { ProcessingStatusBadges } from "./processing-status-badges"
 import { RecordingAnalysisCard } from "./recording-analysis-card"
 import { StrengthsImprovements } from "./strengths-improvements"
+import { WorkflowProgressStepper } from "./workflow-progress-stepper"
 
 export interface AssessmentDashboardViewProps {
   sessionId: string
@@ -46,8 +47,12 @@ function AssessmentDashboardView({ sessionId }: AssessmentDashboardViewProps) {
     <Stack gap="lg">
       <AssessmentSummaryCard
         session={sessionFull.session}
+        candidate={sessionFull.candidate}
+        campaign={sessionFull.campaign}
         communicationAssessment={sessionFull.communication_assessment}
       />
+
+      <WorkflowProgressStepper pipelineStage={sessionFull.pipeline_stage} />
 
       <Card>
         <CardHeader>

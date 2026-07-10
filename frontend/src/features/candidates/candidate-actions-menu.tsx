@@ -42,7 +42,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   useArchiveCandidate,
   useAssignRecruiter,
@@ -58,15 +57,21 @@ import { downloadBlob } from "@/utils"
 import type { CandidateListItem, PipelineStage } from "@/types"
 
 import { PIPELINE_STAGE_OPTIONS, TERMINAL_STAGES } from "./constants"
+import { SendAssessmentDialog } from "./send-assessment-dialog"
 
 export interface CandidateActionsMenuProps {
   candidate: CandidateListItem
   onEditNotes: (candidate: CandidateListItem) => void
+  /** The campaign this candidate belongs to — needed only for "Send
+   * Assessment" (POST /assessment/invitations/send takes a campaign_id +
+   * candidate_ids, not a resume_file_id). */
+  campaignId: string
 }
 
-function CandidateActionsMenu({ candidate, onEditNotes }: CandidateActionsMenuProps) {
+function CandidateActionsMenu({ candidate, onEditNotes, campaignId }: CandidateActionsMenuProps) {
   const [assignOpen, setAssignOpen] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
+  const [sendAssessmentOpen, setSendAssessmentOpen] = React.useState(false)
   const [isDownloading, setIsDownloading] = React.useState(false)
   const [recruiterId, setRecruiterId] = React.useState<string>(candidate.assigned_recruiter?.id ?? "")
 
@@ -209,17 +214,10 @@ function CandidateActionsMenu({ candidate, onEditNotes }: CandidateActionsMenuPr
             <NotebookPen aria-hidden="true" />
             Add/Edit Notes
           </DropdownMenuItem>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div>
-                <DropdownMenuItem disabled>
-                  <Send aria-hidden="true" />
-                  Send Assessment
-                </DropdownMenuItem>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>Coming soon</TooltipContent>
-          </Tooltip>
+          <DropdownMenuItem onSelect={() => setSendAssessmentOpen(true)}>
+            <Send aria-hidden="true" />
+            Send Assessment
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={handleDownload} disabled={isDownloading}>
             <Download aria-hidden="true" />
             Download Resume
@@ -281,6 +279,14 @@ function CandidateActionsMenu({ candidate, onEditNotes }: CandidateActionsMenuPr
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SendAssessmentDialog
+        open={sendAssessmentOpen}
+        onOpenChange={setSendAssessmentOpen}
+        campaignId={campaignId}
+        candidates={[{ candidateId: candidate.candidate_id, name: candidate.candidate_name }]}
+        onDone={() => {}}
+      />
     </>
   )
 }

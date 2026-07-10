@@ -27,7 +27,7 @@ export function useCampaignCandidates(campaignId: string | undefined, filters?: 
   })
 }
 
-function useInvalidateAfterMutation() {
+export function useInvalidateAfterMutation() {
   const queryClient = useQueryClient()
   return () => {
     void queryClient.invalidateQueries({ queryKey: candidateManagementKeys.all })

@@ -354,7 +354,7 @@ class TestUploadRecording:
                 RecordingType.READ_ALOUD,
                 make_upload_file("clip.webm", b"audio-bytes"),
                 12.5,
-                make_user(),
+                _ORG_ID,
             )
         assert exc_info.value.status_code == 404
 
@@ -370,7 +370,7 @@ class TestUploadRecording:
                 RecordingType.READ_ALOUD,
                 make_upload_file("clip.webm", b"audio-bytes"),
                 12.5,
-                make_user(),
+                _ORG_ID,
             )
         assert exc_info.value.status_code == 422
         service.storage.save.assert_not_called()
@@ -387,7 +387,7 @@ class TestUploadRecording:
                 RecordingType.READ_ALOUD,
                 make_upload_file("clip.mp3", b"audio-bytes", content_type="audio/mpeg"),
                 12.5,
-                make_user(),
+                _ORG_ID,
             )
         assert exc_info.value.status_code == 422
         assert "audio/mpeg" in exc_info.value.detail
@@ -408,7 +408,7 @@ class TestUploadRecording:
             RecordingType.READ_ALOUD,
             make_upload_file("clip.webm", b"audio-bytes", content_type="audio/webm;codecs=opus"),
             12.5,
-            make_user(),
+            _ORG_ID,
         )
 
         storage.save.assert_called_once()
@@ -427,7 +427,7 @@ class TestUploadRecording:
                 RecordingType.READ_ALOUD,
                 make_upload_file("clip.webm", b""),
                 12.5,
-                make_user(),
+                _ORG_ID,
             )
         assert exc_info.value.status_code == 422
         service.storage.save.assert_not_called()
@@ -445,7 +445,7 @@ class TestUploadRecording:
                 RecordingType.READ_ALOUD,
                 make_upload_file("clip.webm", oversized),
                 12.5,
-                make_user(),
+                _ORG_ID,
             )
         assert exc_info.value.status_code == 422
         assert "limit" in exc_info.value.detail
@@ -467,7 +467,7 @@ class TestUploadRecording:
             RecordingType.READ_ALOUD,
             make_upload_file("clip.webm", data),
             12.5,
-            make_user(),
+            _ORG_ID,
         )
 
         storage.save.assert_called_once()
@@ -501,7 +501,7 @@ class TestUploadRecording:
                 RecordingType.READ_ALOUD,
                 make_upload_file("clip.webm", b"audio-bytes"),
                 12.5,
-                make_user(),
+                _ORG_ID,
             )
         assert exc_info.value.status_code == 422
         recording_repo.upsert.assert_not_called()

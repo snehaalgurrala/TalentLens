@@ -56,4 +56,29 @@ describe("assessmentSessionService", () => {
     config.onUploadProgress({ loaded: 50, total: 100 })
     expect(onUploadProgress).toHaveBeenCalledWith(50)
   })
+
+  it("uploadRecording sends X-Assessment-Token when an invitation token is given", async () => {
+    const blob = new Blob(["audio-bytes"], { type: "audio/webm" })
+
+    await assessmentSessionService.uploadRecording(
+      "session-1",
+      "READ_ALOUD",
+      blob,
+      12.5,
+      undefined,
+      "invite-token-abc"
+    )
+
+    const [, , config] = mockedPost.mock.calls[0]
+    expect(config.headers["X-Assessment-Token"]).toBe("invite-token-abc")
+  })
+
+  it("uploadRecording omits X-Assessment-Token when there is no invitation token", async () => {
+    const blob = new Blob(["audio-bytes"], { type: "audio/webm" })
+
+    await assessmentSessionService.uploadRecording("session-1", "READ_ALOUD", blob, 12.5)
+
+    const [, , config] = mockedPost.mock.calls[0]
+    expect(config.headers["X-Assessment-Token"]).toBeUndefined()
+  })
 })

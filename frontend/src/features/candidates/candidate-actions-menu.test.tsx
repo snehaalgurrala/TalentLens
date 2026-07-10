@@ -56,7 +56,9 @@ function renderWithClient(ui: React.ReactElement) {
 
 describe("CandidateActionsMenu", () => {
   it("renders an accessible actions trigger for the candidate", () => {
-    renderWithClient(<CandidateActionsMenu candidate={CANDIDATE} onEditNotes={jest.fn()} />)
+    renderWithClient(
+      <CandidateActionsMenu candidate={CANDIDATE} onEditNotes={jest.fn()} campaignId="camp1" />
+    )
     expect(screen.getByRole("button", { name: "Actions for Jane Doe" })).toBeInTheDocument()
   })
 })

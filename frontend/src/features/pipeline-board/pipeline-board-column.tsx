@@ -1,10 +1,7 @@
 "use client"
 
-import { useDroppable } from "@dnd-kit/core"
-
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { cn } from "@/lib/utils"
 import type { CandidateListItem } from "@/types"
 
 import type { PipelineBoardColumn } from "./constants"
@@ -16,6 +13,7 @@ export interface PipelineBoardColumnViewProps {
   onEditNotes: (candidate: CandidateListItem) => void
   selectedIds: Set<string>
   onToggleSelect: (id: string) => void
+  campaignId: string
 }
 
 function PipelineBoardColumnView({
@@ -24,17 +22,10 @@ function PipelineBoardColumnView({
   onEditNotes,
   selectedIds,
   onToggleSelect,
+  campaignId,
 }: PipelineBoardColumnViewProps) {
-  const { setNodeRef, isOver } = useDroppable({ id: column.key, data: { column } })
-
   return (
-    <div
-      ref={setNodeRef}
-      className={cn(
-        "flex w-72 shrink-0 flex-col gap-2 rounded-lg border border-border bg-muted/30 p-2 transition-colors",
-        isOver && "border-primary bg-primary/5"
-      )}
-    >
+    <div className="flex w-72 shrink-0 flex-col gap-2 rounded-lg border border-border bg-muted/30 p-2">
       <div className="flex items-center justify-between gap-2 px-1 py-1">
         <span className="text-sm font-medium text-foreground">{column.label}</span>
         <Badge variant="secondary">{candidates.length}</Badge>
@@ -54,7 +45,7 @@ function PipelineBoardColumnView({
                 aria-label={`Select ${candidate.candidate_name}`}
                 className="absolute top-3 left-3 z-10 bg-background"
               />
-              <PipelineBoardCard candidate={candidate} onEditNotes={onEditNotes} />
+              <PipelineBoardCard candidate={candidate} onEditNotes={onEditNotes} campaignId={campaignId} />
             </div>
           ))
         )}

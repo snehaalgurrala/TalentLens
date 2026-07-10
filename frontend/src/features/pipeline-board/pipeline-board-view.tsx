@@ -2,17 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core"
 import { LayoutGrid, List } from "lucide-react"
-import { toast } from "sonner"
-import { useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
 import { Stack } from "@/components/layout/stack"
@@ -23,15 +13,8 @@ import {
   CandidatesToolbar,
   TERMINAL_STAGES,
 } from "@/features/candidates"
-import {
-  candidateManagementKeys,
-  useCampaignCandidates,
-  useCampaigns,
-  useDebouncedValue,
-  usePermissions,
-  useUpdatePipelineStage,
-} from "@/hooks"
-import type { CandidateListFilters, CandidateListItem, CandidateListResponse } from "@/types"
+import { useCampaignCandidates, useCampaigns, useDebouncedValue, usePermissions } from "@/hooks"
+import type { CandidateListFilters, CandidateListItem } from "@/types"
 
 import { columnForStage, PIPELINE_BOARD_COLUMNS, TERMINAL_BOARD_COLUMNS } from "./constants"
 import { PipelineBoardColumnView } from "./pipeline-board-column"
@@ -42,7 +25,6 @@ const SELECTED_CAMPAIGN_STORAGE_KEY = "tl_candidates_selected_campaign"
 const BOARD_FETCH_LIMIT = 1000
 
 function PipelineBoardView() {
-  const queryClient = useQueryClient()
   const { hasAnyRole } = usePermissions()
 
   const [selectedCampaignId, setSelectedCampaignId] = React.useState<string | null>(() => {
@@ -84,8 +66,6 @@ function PipelineBoardView() {
   const candidatesQuery = useCampaignCandidates(selectedCampaignId ?? undefined, effectiveFilters)
   const candidates = React.useMemo(() => candidatesQuery.data?.items ?? [], [candidatesQuery.data])
 
-  const updatePipelineStage = useUpdatePipelineStage()
-
   const columns = React.useMemo(() => {
     const byColumn = new Map<string, CandidateListItem[]>()
     for (const column of [...PIPELINE_BOARD_COLUMNS, ...TERMINAL_BOARD_COLUMNS]) {
@@ -103,11 +83,6 @@ function PipelineBoardView() {
     0
   )
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor)
-  )
-
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev)
@@ -115,54 +90,6 @@ function PipelineBoardView() {
       else next.add(id)
       return next
     })
-  }
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event
-    if (!over) return
-    const candidate = active.data.current?.candidate as CandidateListItem | undefined
-    const targetColumn = [...PIPELINE_BOARD_COLUMNS, ...TERMINAL_BOARD_COLUMNS].find(
-      (c) => c.key === over.id
-    )
-    if (!candidate || !targetColumn) return
-    if (candidate.pipeline_stage === targetColumn.targetStage) return
-
-    const previousStage = candidate.pipeline_stage
-    const queryKey = candidateManagementKeys.list(selectedCampaignId ?? "", effectiveFilters)
-    const snapshot = queryClient.getQueryData<CandidateListResponse>(queryKey)
-
-    if (snapshot) {
-      queryClient.setQueryData<CandidateListResponse>(queryKey, {
-        ...snapshot,
-        items: snapshot.items.map((item) =>
-          item.resume_file_id === candidate.resume_file_id
-            ? { ...item, pipeline_stage: targetColumn.targetStage }
-            : item
-        ),
-      })
-    }
-
-    updatePipelineStage.mutate(
-      { resumeFileId: candidate.resume_file_id, pipelineStage: targetColumn.targetStage },
-      {
-        onSuccess: () => {
-          toast.success(`Moved to ${targetColumn.label}`, {
-            action: {
-              label: "Undo",
-              onClick: () =>
-                updatePipelineStage.mutate({
-                  resumeFileId: candidate.resume_file_id,
-                  pipelineStage: previousStage,
-                }),
-            },
-          })
-        },
-        onError: (error) => {
-          if (snapshot) queryClient.setQueryData(queryKey, snapshot)
-          toast.error(error.message || "Failed to move candidate")
-        },
-      }
-    )
   }
 
   const showRestore =
@@ -208,6 +135,8 @@ function PipelineBoardView() {
           selectedIds={Array.from(selectedIds)}
           onClear={() => setSelectedIds(new Set())}
           showRestore={showRestore}
+          campaignId={selectedCampaignId}
+          candidates={candidates}
         />
       )}
 
@@ -218,7 +147,7 @@ function PipelineBoardView() {
       ) : candidatesQuery.isError ? (
         <DashboardErrorState error={candidatesQuery.error} onRetry={() => candidatesQuery.refetch()} />
       ) : (
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <>
           <div className="flex gap-3 overflow-x-auto pb-2">
             {PIPELINE_BOARD_COLUMNS.map((column) => (
               <PipelineBoardColumnView
@@ -228,6 +157,7 @@ function PipelineBoardView() {
                 onEditNotes={setNotesCandidate}
                 selectedIds={selectedIds}
                 onToggleSelect={toggleSelect}
+                campaignId={selectedCampaignId ?? ""}
               />
             ))}
           </div>
@@ -251,12 +181,13 @@ function PipelineBoardView() {
                     onEditNotes={setNotesCandidate}
                     selectedIds={selectedIds}
                     onToggleSelect={toggleSelect}
+                    campaignId={selectedCampaignId ?? ""}
                   />
                 ))}
               </div>
             )}
           </div>
-        </DndContext>
+        </>
       )}
 
       <CandidateNotesDialog

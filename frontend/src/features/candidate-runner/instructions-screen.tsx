@@ -5,6 +5,8 @@ import { AlertTriangle, ListChecks, Mic2, Speech } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useMarkInvitationStarted } from "@/hooks/use-assessment-invitations"
+import { useAssessmentRunner } from "./assessment-runner-context"
 import { AssessmentScreenShell } from "./assessment-screen-shell"
 
 const SECTIONS = [
@@ -27,6 +29,16 @@ const SECTIONS = [
 
 function InstructionsScreen() {
   const router = useRouter()
+  const { invitationToken } = useAssessmentRunner()
+  const markStarted = useMarkInvitationStarted()
+
+  function handleContinue() {
+    // Best-effort: this is a lifecycle side-signal for the recruiter
+    // dashboard, not a gate on the candidate's own progress, so a failure
+    // here must never block navigation into the assessment.
+    if (invitationToken) markStarted.mutate(invitationToken)
+    router.push("/assessment/aptitude/1")
+  }
 
   return (
     <AssessmentScreenShell maxWidthClassName="max-w-xl">
@@ -52,7 +64,7 @@ function InstructionsScreen() {
             Once you begin, you cannot pause or restart the assessment. You have one attempt, so
             please complete it in a quiet place with a stable connection.
           </div>
-          <Button size="lg" className="w-full" onClick={() => router.push("/assessment/aptitude/1")}>
+          <Button size="lg" className="w-full" onClick={handleContinue}>
             Continue
           </Button>
         </CardContent>

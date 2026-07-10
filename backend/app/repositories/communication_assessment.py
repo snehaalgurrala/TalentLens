@@ -21,6 +21,18 @@ class CommunicationAssessmentRepository:
         )
         return result.scalar_one_or_none()
 
+    async def list_by_session_ids(
+        self, assessment_session_ids: list[uuid.UUID]
+    ) -> list[CommunicationAssessment]:
+        if not assessment_session_ids:
+            return []
+        result = await self.session.execute(
+            select(CommunicationAssessment).where(
+                CommunicationAssessment.assessment_session_id.in_(assessment_session_ids)
+            )
+        )
+        return list(result.scalars().all())
+
     async def create(
         self, assessment_session_id: uuid.UUID, organization_id: uuid.UUID, **kwargs: Any
     ) -> CommunicationAssessment:

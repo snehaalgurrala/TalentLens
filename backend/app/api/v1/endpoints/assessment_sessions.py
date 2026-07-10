@@ -1,23 +1,34 @@
 import logging
 import re
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, UploadFile, status
+import jwt
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, UploadFile, status
 from fastapi.responses import Response
+from fastapi.security import OAuth2PasswordBearer
 
 from app.api.deps import DBSession, RequireRoles
+from app.core.security import decode_token, hash_token
+from app.models.assessment_invitation import AssessmentInvitationStatus
 from app.models.assessment_recording import RecordingType
 from app.models.user import User, UserRole
 from app.repositories.assessment_analysis import AssessmentAnalysisRepository
 from app.repositories.assessment_answer import AssessmentAnswerRepository
+from app.repositories.assessment_invitation import AssessmentInvitationRepository
 from app.repositories.assessment_recording import AssessmentRecordingRepository
 from app.repositories.assessment_session import AssessmentSessionRepository
 from app.repositories.assessment_transcript import AssessmentTranscriptRepository
 from app.repositories.campaign import CampaignRepository
 from app.repositories.candidate import CandidateRepository
 from app.repositories.communication_assessment import CommunicationAssessmentRepository
-from app.schemas.assessment_dashboard import AssessmentSessionFullResponse
+from app.repositories.resume_file import ResumeFileRepository
+from app.repositories.user import UserRepository
+from app.schemas.assessment_dashboard import (
+    AssessmentSessionFullResponse,
+    AssessmentSessionListResponse,
+)
 from app.schemas.assessment_session import (
     AssessmentAnswerCreate,
     AssessmentAnswerResponse,
@@ -36,12 +47,68 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Candidates have no platform account/token in this sprint — every call here
-# is made on a candidate's behalf by an org member, same access model as
-# candidate_profile.py's notes/tasks/activity endpoints.
+# Every endpoint here except the recording upload is recruiter-authenticated
+# only — every call is made on a candidate's behalf by an org member, same
+# access model as candidate_profile.py's notes/tasks/activity endpoints.
 _require_recruiter_role = RequireRoles(UserRole.RECRUITER, UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN)
 RecruiterUser = Annotated[User, Depends(_require_recruiter_role)]
 StorageDep = Annotated[StorageBackendType, Depends(get_storage_backend)]
+
+# auto_error=False: unlike the shared oauth2_scheme in api/deps.py, a missing
+# bearer token here is not fatal — resolve_recording_upload_org_id falls back
+# to the candidate's invitation token instead.
+_optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
+
+_TERMINAL_INVITATION_STATUSES = (
+    AssessmentInvitationStatus.EXPIRED,
+    AssessmentInvitationStatus.REVOKED,
+    AssessmentInvitationStatus.COMPLETED,
+)
+
+
+async def resolve_recording_upload_org_id(
+    id: uuid.UUID,
+    db: DBSession,
+    token: Annotated[str | None, Depends(_optional_oauth2_scheme)] = None,
+    x_assessment_token: Annotated[str | None, Header(alias="X-Assessment-Token")] = None,
+) -> uuid.UUID:
+    """Authorizes the one call a candidate's own browser makes directly —
+    recording upload — via either a recruiter/admin JWT (existing
+    dev-testing path through landing-screen.tsx, unchanged) or the
+    candidate's own invitation token scoped to this exact session
+    (candidates have no platform account, so there is no JWT to check for
+    that path)."""
+    if token:
+        try:
+            payload = decode_token(token)
+            if payload.get("type") == "access":
+                user = await UserRepository(db).get_by_id(uuid.UUID(payload["sub"]))
+                if (
+                    user is not None
+                    and user.is_active
+                    and user.role in {UserRole.RECRUITER, UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN}
+                    and user.org_id is not None
+                ):
+                    return user.org_id
+        except (jwt.InvalidTokenError, ValueError, KeyError):
+            pass
+
+    if x_assessment_token:
+        invitation = await AssessmentInvitationRepository(db).get_by_token_hash(
+            hash_token(x_assessment_token)
+        )
+        if (
+            invitation is not None
+            and invitation.assessment_session_id == id
+            and invitation.status not in _TERMINAL_INVITATION_STATUSES
+            and invitation.expires_at >= datetime.now(UTC)
+        ):
+            return invitation.organization_id
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authorized for this assessment session.",
+    )
 
 
 def get_assessment_dashboard_service(db: DBSession) -> AssessmentDashboardService:
@@ -53,6 +120,7 @@ def get_assessment_dashboard_service(db: DBSession) -> AssessmentDashboardServic
         communication_assessment_repo=CommunicationAssessmentRepository(db),
         campaign_repo=CampaignRepository(db),
         candidate_repo=CandidateRepository(db),
+        resume_file_repo=ResumeFileRepository(db),
     )
 
 
@@ -113,6 +181,19 @@ async def create_assessment_session(
 ) -> AssessmentSessionResponse:
     assessment_session = await service.create_or_resume(data, current_user)
     return AssessmentSessionResponse.model_validate(assessment_session)
+
+
+@router.get(
+    "",
+    response_model=AssessmentSessionListResponse,
+    summary="List assessment sessions for the organization (optionally filtered by campaign)",
+)
+async def list_assessment_sessions(
+    service: AssessmentDashboardServiceDep,
+    current_user: RecruiterUser,
+    campaign_id: uuid.UUID | None = None,
+) -> AssessmentSessionListResponse:
+    return await service.list_sessions(current_user, campaign_id)
 
 
 @router.get(
@@ -253,6 +334,12 @@ async def save_assessment_recording(
     status_code=status.HTTP_201_CREATED,
     summary="Upload the audio bytes for a recording and mark it UPLOADED",
     responses={
+        401: {
+            "description": (
+                "Neither a valid recruiter/admin session nor a live invitation token "
+                "scoped to this session was provided."
+            )
+        },
         404: {"description": "Assessment session not found."},
         422: {
             "description": (
@@ -266,12 +353,12 @@ async def upload_assessment_recording(
     id: uuid.UUID,
     recording_type: RecordingType,
     service: AssessmentSessionServiceDep,
-    current_user: RecruiterUser,
+    org_id: Annotated[uuid.UUID, Depends(resolve_recording_upload_org_id)],
     file: UploadFile,
     duration_seconds: Annotated[float, Form(gt=0)],
 ) -> AssessmentRecordingResponse:
     recording = await service.upload_recording(
-        id, recording_type, file, duration_seconds, current_user
+        id, recording_type, file, duration_seconds, org_id
     )
     logger.info(
         "Dispatching transcription task",

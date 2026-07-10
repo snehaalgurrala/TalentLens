@@ -70,7 +70,11 @@ function CandidateProfileHeader({ profile, actionsCandidate, onEditNotes }: Cand
               {profile.ranking_available ? "Not yet ranked" : "Job description not ready"}
             </span>
           )}
-          <CandidateActionsMenu candidate={actionsCandidate} onEditNotes={onEditNotes} />
+          <CandidateActionsMenu
+            candidate={actionsCandidate}
+            onEditNotes={onEditNotes}
+            campaignId={profile.campaign.id}
+          />
         </div>
       </CardContent>
     </Card>

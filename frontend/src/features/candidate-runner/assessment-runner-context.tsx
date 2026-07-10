@@ -16,6 +16,13 @@ interface AssessmentRunnerValue {
   sessionId: string | null
   setSessionId: (id: string | null) => void
 
+  /** The raw invitation token from `/assessment/start/[token]`, kept around
+   * only so later screens can report STARTED/COMPLETED back to the
+   * invitation lifecycle. Null on the query-param dev-testing entry point
+   * (landing-screen.tsx), where there is no invitation to update. */
+  invitationToken: string | null
+  setInvitationToken: (token: string | null) => void
+
   deviceCheck: DeviceCheckState
   setDeviceCheckPassed: (key: DeviceCheckKey, passed: boolean) => void
   allDeviceChecksPassed: boolean
@@ -60,6 +67,7 @@ const AssessmentRunnerContext = React.createContext<AssessmentRunnerValue | null
 
 function AssessmentRunnerProvider({ children }: { children: React.ReactNode }) {
   const [sessionId, setSessionId] = React.useState<string | null>(null)
+  const [invitationToken, setInvitationToken] = React.useState<string | null>(null)
   const [deviceCheck, setDeviceCheck] = React.useState<DeviceCheckState>(initialDeviceCheck)
   const [answers, setAnswers] = React.useState<Record<number, string>>({})
   const [section1Submitted, setSection1Submitted] = React.useState(false)
@@ -109,6 +117,7 @@ function AssessmentRunnerProvider({ children }: { children: React.ReactNode }) {
 
   const resetAssessment = React.useCallback(() => {
     setSessionId(null)
+    setInvitationToken(null)
     setDeviceCheck(initialDeviceCheck)
     setAnswers({})
     setSection1Submitted(false)
@@ -133,6 +142,8 @@ function AssessmentRunnerProvider({ children }: { children: React.ReactNode }) {
     () => ({
       sessionId,
       setSessionId,
+      invitationToken,
+      setInvitationToken,
       deviceCheck,
       setDeviceCheckPassed,
       allDeviceChecksPassed,
@@ -158,6 +169,7 @@ function AssessmentRunnerProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       sessionId,
+      invitationToken,
       deviceCheck,
       setDeviceCheckPassed,
       allDeviceChecksPassed,

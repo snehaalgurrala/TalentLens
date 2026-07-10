@@ -1,13 +1,26 @@
 import { useQuery } from "@tanstack/react-query"
 
 import { assessmentDashboardService } from "@/services/assessment-dashboard.service"
-import type { ApiError, AssessmentSession, AssessmentSessionFull } from "@/types"
+import type {
+  ApiError,
+  AssessmentSession,
+  AssessmentSessionFull,
+  AssessmentSessionListResponse,
+} from "@/types"
 
 export const assessmentDashboardKeys = {
   all: ["assessment-dashboard"] as const,
+  list: (campaignId?: string) => [...assessmentDashboardKeys.all, "list", campaignId ?? "all"] as const,
   full: (sessionId: string) => [...assessmentDashboardKeys.all, "full", sessionId] as const,
   byCandidate: (candidateId: string, campaignId: string) =>
     [...assessmentDashboardKeys.all, "by-candidate", candidateId, campaignId] as const,
+}
+
+export function useAssessmentSessionsList(campaignId?: string) {
+  return useQuery<AssessmentSessionListResponse, ApiError>({
+    queryKey: assessmentDashboardKeys.list(campaignId),
+    queryFn: () => assessmentDashboardService.list(campaignId),
+  })
 }
 
 export function useAssessmentSessionFull(sessionId: string | undefined) {

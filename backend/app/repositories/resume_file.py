@@ -44,6 +44,29 @@ class ResumeFileRepository:
         )
         return list(result.scalars().all())
 
+    async def get_by_candidate_and_campaign(
+        self, candidate_id: uuid.UUID, campaign_id: uuid.UUID
+    ) -> ResumeFile | None:
+        """The per-campaign candidate row automatic pipeline-stage
+        transitions key on — invitation/session events carry candidate_id
+        + campaign_id, not resume_file_id directly.
+
+        A candidate can have more than one ResumeFile row for the same
+        campaign (re-uploads/reapplications) — same "most recent wins"
+        resolution as get_latest_by_candidate_id, not scalar_one_or_none,
+        which would raise on a second upload."""
+        result = await self.session.execute(
+            select(ResumeFile)
+            .where(
+                ResumeFile.candidate_id == candidate_id,
+                ResumeFile.campaign_id == campaign_id,
+                ResumeFile.is_deleted.is_(False),
+            )
+            .order_by(ResumeFile.uploaded_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def get_latest_by_candidate_id(self, candidate_id: uuid.UUID) -> ResumeFile | None:
         """Most recently uploaded resume file linked to this candidate — used
         to resolve a bare Candidate.id (as seen on the candidate list/profile

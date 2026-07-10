@@ -45,6 +45,7 @@ if TYPE_CHECKING:
     from app.repositories.candidate_activity import CandidateActivityRepository
     from app.repositories.campaign import CampaignRepository
     from app.repositories.parsed_resume import ParsedResumeRepository
+    from app.repositories.platform_ai_config import PlatformAIConfigRepository
     from app.repositories.resume_file import ResumeFileRepository
     from app.repositories.user import UserRepository
     from app.services.candidate_ranking import CandidateRankingEntry, CandidateRankingService
@@ -61,6 +62,7 @@ class CandidateProfileService:
         activity_repo: CandidateActivityRepository,
         ranking_service: CandidateRankingService,
         explainable_service: ExplainableMatchingService | None = None,
+        platform_ai_config_repo: PlatformAIConfigRepository | None = None,
     ) -> None:
         self.resume_file_repo = resume_file_repo
         self.candidate_repo = candidate_repo
@@ -70,6 +72,11 @@ class CandidateProfileService:
         self.activity_repo = activity_repo
         self.ranking_service = ranking_service
         self.explainable_service = explainable_service or ExplainableMatchingService()
+        # Optional: when wired (see candidate_profile.py endpoint), gates
+        # explanation_items on PlatformAIConfig.explainable_ai_enabled
+        # (Settings > AI Configuration). None preserves the old
+        # always-on behavior for any caller that doesn't pass it.
+        self.platform_ai_config_repo = platform_ai_config_repo
 
     # ── Internal guards ──────────────────────────────────────────────────────
 
@@ -214,7 +221,12 @@ class CandidateProfileService:
 
         match_result = entry.match_result
         explanations = match_result.explanations
-        items = self.explainable_service.explain(match_result)
+
+        explainable_ai_enabled = True
+        if self.platform_ai_config_repo is not None:
+            platform_config = await self.platform_ai_config_repo.get()
+            explainable_ai_enabled = platform_config.explainable_ai_enabled
+        items = self.explainable_service.explain(match_result) if explainable_ai_enabled else []
 
         return CandidateMatchAnalysisResponse(
             overall_score=entry.overall_score,

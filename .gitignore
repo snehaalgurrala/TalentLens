@@ -151,6 +151,9 @@ log/
 tmp/
 temp/
 
+# ── Runtime uploads (backend/app/storage local backend target) ─
+backend/storage/
+
 # ── Databases ────────────────────────────────────────────────
 *.sqlite
 *.sqlite3

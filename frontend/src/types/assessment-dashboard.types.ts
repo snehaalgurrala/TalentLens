@@ -1,3 +1,4 @@
+import type { PipelineStage } from "./candidate.types"
 import type { AssessmentRecording, AssessmentSession, RecordingType } from "./assessment-session.types"
 
 export type TranscriptStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED"
@@ -67,8 +68,41 @@ export interface AssessmentRecordingDetail {
   analysis: AssessmentAnalysis | null
 }
 
+export interface AssessmentSessionCandidateInfo {
+  id: string
+  first_name: string
+  last_name: string
+  email: string | null
+}
+
+export interface AssessmentSessionCampaignInfo {
+  id: string
+  title: string
+}
+
 export interface AssessmentSessionFull {
   session: AssessmentSession
+  candidate: AssessmentSessionCandidateInfo
+  campaign: AssessmentSessionCampaignInfo
+  pipeline_stage: PipelineStage | null
   recordings: AssessmentRecordingDetail[]
   communication_assessment: CommunicationAssessment | null
+}
+
+export interface AssessmentSessionListItem {
+  session_id: string
+  candidate: AssessmentSessionCandidateInfo
+  campaign: AssessmentSessionCampaignInfo
+  status: AssessmentSession["status"]
+  current_section: AssessmentSession["current_section"]
+  progress_percent: number
+  started_at: string
+  completed_at: string | null
+  overall_score: number | null
+  communication_status: CommunicationAssessmentStatus | null
+}
+
+export interface AssessmentSessionListResponse {
+  items: AssessmentSessionListItem[]
+  total: number
 }

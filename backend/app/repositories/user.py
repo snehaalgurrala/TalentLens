@@ -46,3 +46,18 @@ class UserRepository:
             stmt = stmt.where(User.role.in_(roles))
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def list_by_org_all_statuses(self, org_id: uuid.UUID) -> list[User]:
+        """Every user in the org regardless of is_active — used by the admin
+        User Management list, unlike list_by_org (active-only, for pickers)."""
+        result = await self.session.execute(
+            select(User).where(User.org_id == org_id).order_by(User.full_name.asc())
+        )
+        return list(result.scalars().all())
+
+    async def update(self, user: User, **kwargs: Any) -> User:
+        for key, value in kwargs.items():
+            setattr(user, key, value)
+        await self.session.flush()
+        await self.session.refresh(user)
+        return user

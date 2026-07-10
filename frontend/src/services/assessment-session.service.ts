@@ -21,7 +21,12 @@ export const assessmentSessionService = {
     recordingType: RecordingType,
     blob: Blob,
     durationSeconds: number,
-    onUploadProgress?: (percent: number) => void
+    onUploadProgress?: (percent: number) => void,
+    /** Candidates have no platform account/JWT, so the token-flow entry
+     * point (invitation-entry-screen.tsx) passes this through instead —
+     * the backend accepts either a recruiter JWT or this header, scoped
+     * to the exact session the invitation was issued for. */
+    invitationToken?: string | null
   ) => {
     const filename = `${recordingType.toLowerCase()}.${extensionForMimeType(blob.type)}`
     const formData = new FormData()
@@ -31,7 +36,10 @@ export const assessmentSessionService = {
       `/assessment/session/${sessionId}/recordings/${recordingType}/upload`,
       formData,
       {
-        headers: { "Content-Type": "multipart/form-data" },
+        headers: {
+          "Content-Type": "multipart/form-data",
+          ...(invitationToken ? { "X-Assessment-Token": invitationToken } : {}),
+        },
         onUploadProgress: onUploadProgress
           ? (event) => {
               if (event.total) onUploadProgress(Math.round((event.loaded / event.total) * 100))

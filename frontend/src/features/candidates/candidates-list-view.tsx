@@ -170,6 +170,8 @@ function CandidatesListView() {
               .filter((c) => selectedIds.has(c.resume_file_id))
               .every((c) => TERMINAL_STAGES.has(c.pipeline_stage))
           }
+          campaignId={selectedCampaignId}
+          candidates={candidates}
         />
       )}
 
@@ -194,6 +196,7 @@ function CandidatesListView() {
               sortKey={filters.sort_by}
               sortDirection={filters.sort_dir}
               onSortChange={handleSortChange}
+              campaignId={selectedCampaignId ?? ""}
             />
           </div>
           <CandidatesMobileCards
@@ -201,6 +204,7 @@ function CandidatesListView() {
             selectedIds={selectedIds}
             onToggleSelect={toggleSelect}
             onEditNotes={setNotesCandidate}
+            campaignId={selectedCampaignId ?? ""}
           />
         </>
       )}

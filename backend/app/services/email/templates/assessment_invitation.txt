@@ -1,0 +1,18 @@
+TalentLens Assessment Invitation
+
+Hi $candidate_name,
+
+You've been invited to complete an assessment for the "$campaign_name" role.
+
+Estimated duration: $duration
+This invitation expires on: $expires_at
+
+Begin your assessment here:
+$assessment_url
+
+If the link above doesn't work, copy and paste this URL into your browser:
+$assessment_url
+
+Questions? Reply to this email and our team will help.
+
+— The TalentLens Team

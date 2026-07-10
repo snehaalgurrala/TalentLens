@@ -30,9 +30,10 @@ import {
   useBulkUpdatePipelineStage,
   useOrgMembers,
 } from "@/hooks"
-import type { PipelineStage } from "@/types"
+import type { CandidateListItem, PipelineStage } from "@/types"
 
 import { PIPELINE_STAGE_OPTIONS } from "./constants"
+import { SendAssessmentDialog } from "./send-assessment-dialog"
 
 export interface CandidatesBulkActionBarProps {
   selectedIds: string[]
@@ -41,15 +42,37 @@ export interface CandidatesBulkActionBarProps {
    * is currently in a terminal stage (REJECTED/WITHDRAWN/ARCHIVED). Kept as a
    * boolean prop so this bar stays dumb/reusable across the table and board. */
   showRestore?: boolean
+  /** The campaign the selected candidates belong to, and the full candidate
+   * rows themselves — both needed only for "Send Assessment" (candidate_id +
+   * campaign_id, not the resume_file_id every other action here uses).
+   * Optional so this bar stays usable without an assessment-invitation
+   * context. */
+  campaignId?: string | null
+  candidates?: CandidateListItem[]
 }
 
-function CandidatesBulkActionBar({ selectedIds, onClear, showRestore = false }: CandidatesBulkActionBarProps) {
+function CandidatesBulkActionBar({
+  selectedIds,
+  onClear,
+  showRestore = false,
+  campaignId = null,
+  candidates = [],
+}: CandidatesBulkActionBarProps) {
   const [assignOpen, setAssignOpen] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [archiveOpen, setArchiveOpen] = React.useState(false)
   const [stageMoveOpen, setStageMoveOpen] = React.useState(false)
+  const [sendAssessmentOpen, setSendAssessmentOpen] = React.useState(false)
   const [recruiterId, setRecruiterId] = React.useState("")
   const [targetStage, setTargetStage] = React.useState<PipelineStage>("SHORTLISTED")
+
+  const selectedCandidates = React.useMemo(
+    () =>
+      candidates
+        .filter((candidate) => selectedIds.includes(candidate.resume_file_id))
+        .map((candidate) => ({ candidateId: candidate.candidate_id, name: candidate.candidate_name })),
+    [candidates, selectedIds]
+  )
 
   const membersQuery = useOrgMembers()
   const bulkShortlist = useBulkShortlist()
@@ -162,6 +185,16 @@ function CandidatesBulkActionBar({ selectedIds, onClear, showRestore = false }: 
           <Button variant="outline" size="sm" onClick={handleBulkReject} disabled={isWorking}>
             Reject
           </Button>
+          {campaignId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSendAssessmentOpen(true)}
+              disabled={isWorking || selectedCandidates.length === 0}
+            >
+              Send Assessment
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => setAssignOpen(true)} disabled={isWorking}>
             Assign Recruiter
           </Button>
@@ -278,6 +311,16 @@ function CandidatesBulkActionBar({ selectedIds, onClear, showRestore = false }: 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {campaignId && (
+        <SendAssessmentDialog
+          open={sendAssessmentOpen}
+          onOpenChange={setSendAssessmentOpen}
+          campaignId={campaignId}
+          candidates={selectedCandidates}
+          onDone={onClear}
+        />
+      )}
     </>
   )
 }

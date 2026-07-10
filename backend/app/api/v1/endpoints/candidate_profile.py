@@ -12,6 +12,7 @@ from app.repositories.candidate_note import CandidateNoteRepository
 from app.repositories.candidate_task import CandidateTaskRepository
 from app.repositories.job_description import JobDescriptionRepository
 from app.repositories.parsed_resume import ParsedResumeRepository
+from app.repositories.platform_ai_config import PlatformAIConfigRepository
 from app.repositories.resume_file import ResumeFileRepository
 from app.repositories.scoring_rule import ScoringRuleRepository
 from app.repositories.user import UserRepository
@@ -64,6 +65,7 @@ def get_candidate_profile_service(db: DBSession) -> CandidateProfileService:
         user_repo=UserRepository(db),
         activity_repo=CandidateActivityRepository(db),
         ranking_service=ranking_service,
+        platform_ai_config_repo=PlatformAIConfigRepository(db),
     )
 
 

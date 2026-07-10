@@ -48,9 +48,21 @@ from app.models.assessment_analysis import AnalysisStatus, AnalysisType, Assessm
 from app.models.assessment_recording import AssessmentRecording
 from app.models.assessment_session import AssessmentSession
 from app.models.assessment_transcript import AssessmentTranscript
+from app.models.candidate_activity import ActivityEventType
 from app.models.communication_assessment import CommunicationAssessmentStatus
+from app.models.notification import NotificationType
+from app.models.resume_file import PipelineStage, ResumeFile
+from app.repositories.campaign import CampaignRepository
+from app.repositories.candidate import CandidateRepository
+from app.repositories.candidate_activity import CandidateActivityRepository
 from app.repositories.communication_assessment import CommunicationAssessmentRepository
+from app.repositories.notification import NotificationRepository
+from app.repositories.notification_preference import NotificationPreferenceRepository
+from app.repositories.resume_file import ResumeFileRepository
 from app.services.communication_assessment import CommunicationAssessmentService
+from app.services.notification import NotificationService
+from app.services.notification_preference import should_notify
+from app.services.pipeline_transitions import advance_pipeline_stage
 from app.workers.celery_app import celery_app, run_task
 
 logger = logging.getLogger(__name__)
@@ -72,6 +84,69 @@ async def _get_analyses_for_session(
         .where(AssessmentRecording.session_id == assessment_session_id)
     )
     return {row.analysis_type: row for row in result.scalars().all()}
+
+
+async def _notify_assessment_completed(
+    session: Any,
+    resume_file: ResumeFile,
+    *,
+    candidate_id: uuid.UUID,
+    campaign_id: uuid.UUID,
+    org_id: uuid.UUID,
+) -> None:
+    """Best-effort: notify the assigned recruiter (falling back to the
+    campaign's creator if nobody is assigned) that this candidate's
+    assessment finished. Never raises — a notification failure must not
+    fail the assessment-completion transaction it's riding along in."""
+    campaign_repo = CampaignRepository(session)
+    campaign = await campaign_repo.get_by_id(campaign_id, org_id)
+
+    recipient_id = resume_file.assigned_recruiter_id or (
+        campaign.created_by if campaign is not None else None
+    )
+    if recipient_id is None:
+        logger.info(
+            "No recruiter to notify (unassigned candidate, campaign has no creator)",
+            extra={"resume_file_id": str(resume_file.id)},
+        )
+        return
+
+    candidate_repo = CandidateRepository(session)
+    candidate = await candidate_repo.get_by_id_and_org(candidate_id, org_id)
+    candidate_name = f"{candidate.first_name} {candidate.last_name}" if candidate else "A candidate"
+    campaign_title = campaign.title if campaign is not None else "your campaign"
+
+    try:
+        # A SAVEPOINT (not the outer transaction): if the insert below fails
+        # mid-flush, only this savepoint rolls back — the caller's session
+        # stays healthy for its own commit (pipeline_stage/complete_processing
+        # must survive even if this notification doesn't).
+        async with session.begin_nested():
+            prefs_repo = NotificationPreferenceRepository(session)
+            in_app_allowed, _email_allowed = await should_notify(
+                prefs_repo, recipient_id, "assessment_completed"
+            )
+            if not in_app_allowed:
+                logger.info(
+                    "Skipping assessment-completed notification — recipient has it disabled",
+                    extra={"resume_file_id": str(resume_file.id), "recipient_id": str(recipient_id)},
+                )
+                return
+            notification_service = NotificationService(NotificationRepository(session))
+            await notification_service.create(
+                organization_id=org_id,
+                user_id=recipient_id,
+                type=NotificationType.SUCCESS,
+                title="Assessment Completed",
+                message=f"{candidate_name} completed their communication assessment for {campaign_title}.",
+                resume_file_id=resume_file.id,
+            )
+    except Exception:
+        logger.warning(
+            "Failed to create assessment-completed notification",
+            extra={"resume_file_id": str(resume_file.id)},
+            exc_info=True,
+        )
 
 
 # ── Core async implementation ─────────────────────────────────────────────────
@@ -143,6 +218,9 @@ async def _run_generate_communication_assessment(
         logger.info("Task Started", extra={**log_ctx, "assessment_id": str(assessment.id)})
 
         # Capture scalars before the session closes (expire_on_commit=False preserves them)
+        candidate_id = assessment_session.candidate_id
+        campaign_id = assessment_session.campaign_id
+        org_id = assessment_session.org_id
         read_aloud_input = ReadAloudAssessmentInput(
             overall_score=read_aloud.overall_score,
             word_accuracy=read_aloud.word_accuracy,
@@ -173,6 +251,27 @@ async def _run_generate_communication_assessment(
             improvements_json=result.improvements,
             summary_json=result.summary.model_dump(mode="json"),
         )
+
+        # Only after the CommunicationAssessment itself is COMPLETED — never
+        # merely because uploads/transcription finished (see PART 2 of the
+        # automatic-pipeline-workflow sprint doc).
+        resume_file = await advance_pipeline_stage(
+            ResumeFileRepository(session),
+            CandidateActivityRepository(session),
+            candidate_id=candidate_id,
+            campaign_id=campaign_id,
+            target_stage=PipelineStage.ASSESSMENT_COMPLETED,
+            event_type=ActivityEventType.ASSESSMENT_COMPLETED,
+        )
+        if resume_file is not None:
+            await _notify_assessment_completed(
+                session,
+                resume_file,
+                candidate_id=candidate_id,
+                campaign_id=campaign_id,
+                org_id=org_id,
+            )
+
         await session.commit()
         logger.info(
             "Task Completed",
